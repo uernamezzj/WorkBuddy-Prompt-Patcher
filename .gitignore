@@ -1,0 +1,19 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local test & sensitive utility scripts
+test_syntax_fix.js
+verify_clean_target.js
+deploy_device_isolation.js
+fix_user_profiles.py
+_gh_pat.txt
+.env
+*.log
+
+# Backups
+*.bak*
+*.orig
+templates_backup/
+templates_backup_*/

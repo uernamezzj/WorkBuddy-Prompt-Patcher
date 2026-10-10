@@ -21,9 +21,9 @@
 ## 1. 环境与安装路径
 
 * **WorkBuddy 客户端真实安装路径（D盘）**：
-  `D:\Users\31305\AppData\Local\Programs\WorkBuddy\`
+  `%LOCALAPPDATA%\Programs\WorkBuddy\`
 * **资源文件目录**：
-  `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\`
+  `%LOCALAPPDATA%\Programs\WorkBuddy\resources\`
 
 ---
 
@@ -44,21 +44,21 @@
 所有的黑化版资源均保存在本地系统如下位置：
 
 * **黑化版 PNG 高清图标**：
-  `C:\Users\31305\.gemini\antigravity\brain\42fe466f-2049-4165-b657-d832887a35a1\evil_workbuddy_icon_1784799193360.png`
+  `./assets/evil_workbuddy_icon_1784799193360.png`
 
 * **黑化版矢量 SVG (正方形 App Icon 版)**：
-  `C:\Users\31305\.gemini\antigravity\brain\42fe466f-2049-4165-b657-d832887a35a1\evil_pwa-icon.svg`
+  `./assets/evil_pwa-icon.svg`
 
 * **黑化版矢量 SVG (宽屏 Logo 徽标版)**：
-  `C:\Users\31305\.gemini\antigravity\brain\42fe466f-2049-4165-b657-d832887a35a1\evil_logo.svg`
+  `./assets/evil_logo.svg`
 
 ### 2.4 核心 ASAR 路径与备份文件
 * **当前生效的已修改核心包**：
-  `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app.asar`
+  `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app.asar`
 * **原始核心包安全备份**：
-  `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app.asar.bak`
+  `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app.asar.bak`
 * **解压临时目录 (可选择清理)**：
-  `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app_temp\`
+  `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app_temp\`
 
 ### 2.5 识图精准比对与 3 种猫咪 Icon 替换记录
 
@@ -66,10 +66,10 @@
 
 | 用户截图 | 视觉特征与功能场景 | 对应的原程序资源文件 (绝对路径) |
 | :--- | :--- | :--- |
-| **图 1** | 绿色渐变背景圆角矩形，白猫头徽标 Logo | `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app_temp\renderer\assets\logo-workbuddy-BUNGQxi-.svg` |
-| **图 2** | 紫/蓝渐变圆形背景，白猫头顶栏图标 | `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app_temp\renderer\assets\header-icon-dark-B6QVQZjG.svg` |
-| **图 3** | 深灰/暗灰圆形背景，白猫头顶栏/对话图标 | `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app_temp\renderer\assets\header-icon-DKPVU6OC.svg`<br>`D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app_temp\renderer\assets\header-cat-icon-DcTQ87UT.svg` |
-| **左下角头像** | 默认用户个人中心头像图片 (PNG) | `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app_temp\renderer\assets\default-account-logo-DBnjou1P.png` |
+| **图 1** | 绿色渐变背景圆角矩形，白猫头徽标 Logo | `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app_temp\renderer\assets\logo-workbuddy-BUNGQxi-.svg` |
+| **图 2** | 紫/蓝渐变圆形背景，白猫头顶栏图标 | `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app_temp\renderer\assets\header-icon-dark-B6QVQZjG.svg` |
+| **图 3** | 深灰/暗灰圆形背景，白猫头顶栏/对话图标 | `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app_temp\renderer\assets\header-icon-DKPVU6OC.svg`<br>`%LOCALAPPDATA%\Programs\WorkBuddy\resources\app_temp\renderer\assets\header-cat-icon-DcTQ87UT.svg` |
+| **左下角头像** | 默认用户个人中心头像图片 (PNG) | `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app_temp\renderer\assets\default-account-logo-DBnjou1P.png` |
 
 ### 2.7 App 文件夹明文挂载模式与命令行 DevTools 强启方案
 
@@ -77,13 +77,13 @@
 
 1. **App 文件夹明文挂载模式 (Folder Mode)**：  
    在 Electron 架构中，如果 `resources/app` 文件夹存在，客户端会优先加载 `app` 目录中的源码与静态文件，从而跳过 `app.asar`。  
-   * **已重命名包**：将 `app.asar` 改名暂存为 `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app.asar.disabled`。  
-   * **生成明文目录**：将修改后的代码创建为原生明文目录 `D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app\`。
+   * **已重命名包**：将 `app.asar` 改名暂存为 `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app.asar.disabled`。  
+   * **生成明文目录**：将修改后的代码创建为原生明文目录 `%LOCALAPPDATA%\Programs\WorkBuddy\resources\app\`。
 
 2. **命令行附加调试参数强启 DevTools (CLI Debug Method)**：  
    如果快捷键被新版本拦截，可通过在启动指令中添加 Electron 官方远程调试参数强制切出控制台：  
    * **带参数启动指令**：  
-     `"D:\Users\31305\AppData\Local\Programs\WorkBuddy\WorkBuddy.exe" --remote-debugging-port=9222 --auto-open-devtools-for-tabs`
+     `"%LOCALAPPDATA%\Programs\WorkBuddy\WorkBuddy.exe" --remote-debugging-port=9222 --auto-open-devtools-for-tabs`
    * **浏览器远程审查接口**：在 Chrome / Edge 中访问 `http://localhost:9222` 或 `chrome://inspect` 即可审查客户端全部 UI 节点。
 
 ## 3. WorkBuddy 系统提示词 (System Prompt) 位置研究
@@ -92,7 +92,7 @@
 WorkBuddy 官方的底层 Prompt 无需从外部泄露，其所有的系统级 Prompt 模板都以明文形式存放于客户端的解包目录中：
 
 📁 **完整绝对路径**：
-`D:\Users\31305\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\resources\templates\`
+`%LOCALAPPDATA%\Programs\WorkBuddy\resources\app.asar.unpacked\resources\templates\`
 
 ### 3.2 关键 `.tpl` 模板文件清单
 
