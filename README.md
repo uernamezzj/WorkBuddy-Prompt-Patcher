@@ -77,14 +77,13 @@ WorkBuddy 作为一个基于 Electron 框架构建的桌面 AI 客户端，其�
 
 ```text
 WorkBuddy-Prompt-Patcher/
-├── batch_patch_prompts.py             # 核心引擎：Python 全自动 / 交互式批量修改器
+├── batch_patch_prompts.py             # 核心引擎：Python 全自动 / 交互式批量提示词修改器
 ├── 一键修改提示词.bat                 # Windows 双击快速启动脚本 (GBK/CRLF 标准)
-├── Launch-WorkBuddy-DevTools.bat      # 唤起带 DevTools 开发者工具的 WorkBuddy 客户端
-├── custom_input.txt                   # 核心提示词长文本编辑与同步缓冲区
-├── index.js                           # Node.js 跨平台控制台菜单与打包辅助工具
-├── apply_workbuddy_md.js              # ~/.workbuddy 用户身份与 Persona 配置注入器
-├── WorkBuddy_Research_Notes.md        # WorkBuddy 底层结构与样式资产研究笔记
-├── WorkBuddy_Reverse_Engineering_Report.md  # 详细逆向分析与加壳校验破除技术报告
+├── custom_input.txt                   # 核心提示词长文本编辑与同步缓冲区 (含 5 大神级模块)
+├── WorkBuddy_Research_Notes.md        # WorkBuddy 底层结构与模板机制研究笔记
+├── WorkBuddy_Reverse_Engineering_Report.md  # 底层逆向分析与模板提取技术报告
+├── .gitattributes                     # Git 跨平台换行标准化配置
+├── .gitignore                         # 忽略文件配置
 └── README.md                          # 项目使用说明文档
 ```
 
