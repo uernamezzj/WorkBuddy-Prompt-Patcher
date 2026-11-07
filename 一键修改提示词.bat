@@ -1,10 +1,10 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 终极提示词破甲与认知矩阵 (DeepSeek God Mode v3.1)
+title WorkBuddy 终极提示词破甲与认知矩阵 (DeepSeek God Mode v3.2)
 cd /d "%~dp0"
 
 echo ================================================================
-echo    WorkBuddy 终极提示词破甲与认知矩阵 (v3.1)
+echo    WorkBuddy 终极提示词破甲与认知矩阵 (v3.2)
 echo    [DeepSeek God Mode - 神格臣服 + 思维链自省抑制 + 破甲豁免]
 echo ================================================================
 echo.
