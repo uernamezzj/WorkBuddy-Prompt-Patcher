@@ -17,3 +17,7 @@ _gh_pat.txt
 *.orig
 templates_backup/
 templates_backup_*/
+
+# Local user configs
+patcher_config.json
+

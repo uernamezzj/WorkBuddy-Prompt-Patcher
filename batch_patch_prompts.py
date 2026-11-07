@@ -17,6 +17,8 @@ import os
 import sys
 import re
 import shutil
+import json
+import subprocess
 from datetime import datetime
 
 # Windows 终端 UTF-8 打印兼容
@@ -29,31 +31,254 @@ if sys.platform == 'win32':
 
 CURRENT_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BUFFER_FILE_PATH = os.path.join(CURRENT_SCRIPT_DIR, 'custom_input.txt')
+CONFIG_FILE_PATH = os.path.join(CURRENT_SCRIPT_DIR, 'patcher_config.json')
+
+
+def is_valid_templates_dir(path):
+    """验证目标目录是否存在且包含 WorkBuddy 核心 .tpl 模板文件"""
+    if not path or not os.path.isdir(path):
+        return False
+    try:
+        files = os.listdir(path)
+        return any(f.endswith('.tpl') for f in files)
+    except Exception:
+        return False
+
+
+def load_saved_templates_dir():
+    """读取已持久化保存的有效 templates 目录"""
+    if os.path.exists(CONFIG_FILE_PATH):
+        try:
+            with open(CONFIG_FILE_PATH, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                saved_path = data.get('templates_dir', '')
+                if is_valid_templates_dir(saved_path):
+                    return os.path.abspath(saved_path)
+        except Exception:
+            pass
+    return None
+
+
+def save_templates_dir(path):
+    """保存有效 templates 目录到本地配置文件"""
+    try:
+        with open(CONFIG_FILE_PATH, 'w', encoding='utf-8') as f:
+            json.dump({'templates_dir': os.path.abspath(path)}, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def resolve_to_templates_dir(raw_path):
+    """
+    智能路径解析器：无论用户传入快捷方式(.lnk)、主程序(WorkBuddy.exe)、
+    安装根目录或 resources 目录，均自动推导出真实的 templates 绝对路径。
+    """
+    if not raw_path:
+        return None
+    raw_path = raw_path.strip().strip('"').strip("'")
+    if not os.path.exists(raw_path):
+        return None
+
+    # 1. 快捷方式 (.lnk) 解析
+    if raw_path.lower().endswith('.lnk') and sys.platform == 'win32':
+        try:
+            ps_cmd = f"(New-Object -COM WScript.Shell).CreateShortcut('{raw_path}').TargetPath"
+            res = subprocess.run(['powershell', '-NoProfile', '-Command', ps_cmd], capture_output=True, text=True, timeout=3)
+            target = res.stdout.strip()
+            if target and os.path.exists(target):
+                raw_path = target
+        except Exception:
+            pass
+
+    # 2. 如果传入的是文件（如 WorkBuddy.exe），取其所在目录
+    if os.path.isfile(raw_path):
+        raw_path = os.path.dirname(raw_path)
+
+    # 3. 常见候选子路径
+    subpaths = [
+        "",
+        os.path.join("resources", "app.asar.unpacked", "resources", "templates"),
+        os.path.join("app.asar.unpacked", "resources", "templates"),
+        os.path.join("resources", "templates"),
+        os.path.join("Contents", "Resources", "app.asar.unpacked", "resources", "templates"),
+        os.path.join("Contents", "Resources", "resources", "templates"),
+    ]
+
+    for sp in subpaths:
+        candidate = os.path.join(raw_path, sp) if sp else raw_path
+        if is_valid_templates_dir(candidate):
+            return os.path.abspath(candidate)
+
+    # 4. 检查父目录（例如用户传入了 resources 目录）
+    parent = os.path.dirname(raw_path)
+    for sp in subpaths:
+        candidate = os.path.join(parent, sp) if sp else parent
+        if is_valid_templates_dir(candidate):
+            return os.path.abspath(candidate)
+
+    return None
 
 
 def auto_detect_templates_dir():
-    """自动探测本机 WorkBuddy 的 templates 目录 (全动态探测，无硬编码路径)"""
-    candidates = []
+    """
+    全方位多维探测 WorkBuddy templates 目录：
+    1. 本地已保存的配置文件 (patcher_config.json)
+    2. 运行中进程 (WorkBuddy.exe) 真实路径提取
+    3. Windows 注册表 (Uninstall 项)
+    4. 桌面与开始菜单快捷方式 (*WorkBuddy*.lnk)
+    5. 全盘多盘符深度启发式探测 (C:~Z: 的常用安装目录)
+    6. macOS 默认 App 路径
+    """
+    # 1. 优先读取持久化配置
+    saved = load_saved_templates_dir()
+    if saved:
+        return saved
 
+    # 2. Windows 环境专用高速探测
+    if sys.platform == 'win32':
+        # 2.1 探测正在运行的 WorkBuddy.exe 进程
+        try:
+            cmd = "Get-Process -Name WorkBuddy -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -First 1"
+            res = subprocess.run(['powershell', '-NoProfile', '-Command', cmd], capture_output=True, text=True, timeout=3)
+            proc_path = res.stdout.strip()
+            if proc_path and os.path.exists(proc_path):
+                resolved = resolve_to_templates_dir(proc_path)
+                if resolved:
+                    save_templates_dir(resolved)
+                    return resolved
+        except Exception:
+            pass
+
+        # 2.2 通过注册表探测安装路径
+        try:
+            import winreg
+            roots = [
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall")
+            ]
+            for hkey, subkey in roots:
+                try:
+                    with winreg.OpenKey(hkey, subkey) as key:
+                        count = winreg.QueryInfoKey(key)[0]
+                        for i in range(count):
+                            try:
+                                name = winreg.EnumKey(key, i)
+                                with winreg.OpenKey(key, name) as app_key:
+                                    display_name = ""
+                                    try:
+                                        display_name = winreg.QueryValueEx(app_key, "DisplayName")[0]
+                                    except Exception:
+                                        pass
+                                    if "workbuddy" in name.lower() or "workbuddy" in display_name.lower():
+                                        for val_name in ["InstallLocation", "DisplayIcon", "UninstallString"]:
+                                            try:
+                                                val = winreg.QueryValueEx(app_key, val_name)[0]
+                                                if val:
+                                                    clean_val = val.split(',')[0].strip().strip('"')
+                                                    resolved = resolve_to_templates_dir(clean_val)
+                                                    if resolved:
+                                                        save_templates_dir(resolved)
+                                                        return resolved
+                                            except Exception:
+                                                pass
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # 2.3 探测桌面与开始菜单快捷方式
+        search_dirs = [
+            os.path.join(os.environ.get('USERPROFILE', ''), 'Desktop'),
+            os.path.join(os.environ.get('PUBLIC', ''), 'Desktop'),
+            os.path.join(os.environ.get('APPDATA', ''), r'Microsoft\Windows\Start Menu\Programs'),
+            os.path.join(os.environ.get('PROGRAMDATA', ''), r'Microsoft\Windows\Start Menu\Programs')
+        ]
+        for d in search_dirs:
+            if os.path.isdir(d):
+                for root, _, files in os.walk(d):
+                    for f in files:
+                        if 'workbuddy' in f.lower() and f.endswith('.lnk'):
+                            resolved = resolve_to_templates_dir(os.path.join(root, f))
+                            if resolved:
+                                save_templates_dir(resolved)
+                                return resolved
+
+    # 3. 启发式文件路径多盘符探测
+    candidates = []
     local_app_data = os.environ.get('LOCALAPPDATA', '')
     if local_app_data:
-        candidates.append(os.path.join(local_app_data, 'Programs', 'WorkBuddy', 'resources', 'app.asar.unpacked', 'resources', 'templates'))
+        candidates.append(os.path.join(local_app_data, 'Programs', 'WorkBuddy'))
 
     user_profile = os.environ.get('USERPROFILE', '')
     if user_profile:
-        candidates.append(os.path.join(user_profile, 'AppData', 'Local', 'Programs', 'WorkBuddy', 'resources', 'app.asar.unpacked', 'resources', 'templates'))
+        candidates.append(os.path.join(user_profile, 'AppData', 'Local', 'Programs', 'WorkBuddy'))
 
     username = os.environ.get('USERNAME', '')
-    for drive in ['C', 'D', 'E', 'F']:
+    # 扫描 C 到 Z 常用盘符
+    drives = [f"{chr(d)}:" for d in range(ord('C'), ord('Z') + 1) if os.path.exists(f"{chr(d)}:\\")]
+    for drive in drives:
         if username:
-            candidates.append(fr"{drive}:\Users\{username}\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\resources\templates")
-        candidates.append(fr"{drive}:\Program Files\WorkBuddy\resources\app.asar.unpacked\resources\templates")
-        candidates.append(fr"{drive}:\Program Files (x86)\WorkBuddy\resources\app.asar.unpacked\resources\templates")
+            candidates.append(fr"{drive}\Users\{username}\AppData\Local\Programs\WorkBuddy")
+        candidates.append(fr"{drive}\Program Files\WorkBuddy")
+        candidates.append(fr"{drive}\Program Files (x86)\WorkBuddy")
+        candidates.append(fr"{drive}\WorkBuddy")
+        candidates.append(fr"{drive}\Software\WorkBuddy")
+        candidates.append(fr"{drive}\Apps\WorkBuddy")
+        candidates.append(fr"{drive}\Tools\WorkBuddy")
+        candidates.append(fr"{drive}\Soft\WorkBuddy")
 
-    for path in candidates:
-        if os.path.isdir(path):
-            return os.path.abspath(path)
+    # macOS 探测
+    if sys.platform == 'darwin':
+        candidates.append('/Applications/WorkBuddy.app')
+        candidates.append(os.path.expanduser('~/Applications/WorkBuddy.app'))
+
+    for c in candidates:
+        resolved = resolve_to_templates_dir(c)
+        if resolved:
+            save_templates_dir(resolved)
+            return resolved
+
     return None
+
+
+def prompt_user_for_templates_dir():
+    """当所有自动探测均未命中时，提供极其友好直观的拖入/输入引导"""
+    print("\n" + "=" * 65)
+    print("  ⚠️ 未能在常见默认路径自动检测到 WorkBuddy 安装位置")
+    print("=" * 65)
+    print("可能原因：")
+    print("  1. 您将 WorkBuddy 安装到了自定义路径（如 D盘、E盘、移动硬盘等）；")
+    print("  2. 当前电脑尚未安装 WorkBuddy 客户端。\n")
+    print("【💡 最简一键定位方式】：")
+    print("  👉 请直接将桌面上的「WorkBuddy」图标拖拽入本窗口，并按回车：")
+    print("     (或者直接粘贴您的安装目录路径，例如 D:\\WorkBuddy)")
+    print("     (输入 Q 退出)")
+    print("-" * 65)
+
+    while True:
+        try:
+            user_input = input("请输入或拖入路径: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n[操作已取消]")
+            return None
+
+        if not user_input or user_input.upper() == 'Q':
+            print("\n[操作已取消]")
+            return None
+
+        resolved = resolve_to_templates_dir(user_input)
+        if resolved:
+            save_templates_dir(resolved)
+            print(f"\n[✅ 成功识别！] 目标模板目录已锁定为：\n  -> {resolved}")
+            print("[💾 路径已自动持久化保存，下次启动无需再次设置！]")
+            return resolved
+        else:
+            print("\n[❌ 错误] 未在该路径或其子目录下检测到 WorkBuddy 的 .tpl 模板文件！")
+            print("请确认是否拖入了正确的 WorkBuddy 桌面快捷方式、WorkBuddy.exe 或安装根目录。")
+            print("请重新输入（或输入 Q 退出）：")
 
 
 
@@ -471,9 +696,16 @@ def scan_all_tags(templates_dir):
     print("-" * 75)
 
 
-def interactive_menu():
+def interactive_menu(templates_dir=None):
     """主菜单控制循环"""
-    templates_dir = auto_detect_templates_dir()
+    if not templates_dir or not is_valid_templates_dir(templates_dir):
+        templates_dir = auto_detect_templates_dir()
+
+    if not templates_dir or not is_valid_templates_dir(templates_dir):
+        templates_dir = prompt_user_for_templates_dir()
+        if not templates_dir:
+            print("\n[未设置有效路径，退出程序]")
+            return
 
     while True:
         detected_display = templates_dir if templates_dir else "❌ 未自动识别到 (请选 11 手动指定)"
@@ -505,7 +737,11 @@ def interactive_menu():
         print("  0. ❌ 退出")
         print("=" * 65)
 
-        choice = input("请选择操作编号 (A / 1-11 / 0): ").strip()
+        try:
+            choice = input("请选择操作编号 (A / 1-11 / 0): ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n\n[已退出]")
+            break
 
         if choice == '0':
             print("\n已退出工具。感谢使用！")
@@ -516,16 +752,22 @@ def interactive_menu():
             continue
 
         if choice == '11':
-            new_path = input("\n请输入您的 WorkBuddy resources\\app.asar.unpacked\\resources\\templates 完整目录路径:\n> ").strip()
-            clean_path = new_path.replace('"', '').replace("'", '')
-            if os.path.isdir(clean_path):
-                templates_dir = clean_path
-                print(f"[✅ 路径已更新]: {templates_dir}")
-            else:
-                print(f"[❌ 错误] 输入的目录不存在，请检查！")
+            print("\n【📁 手动重设/更新 WorkBuddy 资源路径】")
+            print("👉 请直接拖入桌面的「WorkBuddy」图标，或输入新的安装目录：")
+            try:
+                new_path = input("> ").strip()
+                resolved = resolve_to_templates_dir(new_path)
+                if resolved:
+                    templates_dir = resolved
+                    save_templates_dir(templates_dir)
+                    print(f"[✅ 路径已更新并持久化保存]: {templates_dir}")
+                else:
+                    print(f"[❌ 错误] 该路径下未找到有效的 .tpl 模板文件，请检查！")
+            except (KeyboardInterrupt, EOFError):
+                pass
             continue
 
-        if not templates_dir or not os.path.isdir(templates_dir):
+        if not templates_dir or not is_valid_templates_dir(templates_dir):
             print("\n[❌ 错误] 未找到有效的 templates 目录，请先按 11 手动设置！")
             continue
 
@@ -589,26 +831,45 @@ def main():
 
     # 路径解析
     target_dir = args.templates_dir
-    if not target_dir or not os.path.isdir(target_dir):
+    if target_dir:
+        target_dir = resolve_to_templates_dir(target_dir)
+
+    if not target_dir or not is_valid_templates_dir(target_dir):
         target_dir = auto_detect_templates_dir()
 
-    if not target_dir or not os.path.isdir(target_dir):
-        print("\n[❌ 致命错误] 未能自动定位到 WorkBuddy templates 目录！")
-        print("请检查 WorkBuddy 是否已安装，或使用 --templates-dir 参数显式传入路径。")
-        sys.exit(1)
+    is_interactive_run = not args.auto and not args.restore and not args.scan
 
     # 1. 扫描模式
     if args.scan:
+        if not target_dir or not is_valid_templates_dir(target_dir):
+            if sys.stdin.isatty():
+                target_dir = prompt_user_for_templates_dir()
+            if not target_dir:
+                print("\n[❌ 致命错误] 未能定位到 WorkBuddy templates 目录！")
+                sys.exit(1)
         scan_all_tags(target_dir)
         sys.exit(0)
 
     # 2. 还原模式
     if args.restore:
+        if not target_dir or not is_valid_templates_dir(target_dir):
+            if sys.stdin.isatty():
+                target_dir = prompt_user_for_templates_dir()
+            if not target_dir:
+                print("\n[❌ 致命错误] 未能定位到 WorkBuddy templates 目录！")
+                sys.exit(1)
         success = restore_backup(target_dir, non_interactive=True)
         sys.exit(0 if success else 1)
 
     # 3. 全自动破甲与规则注入模式 (供 AI Agent / 自动化脚本一键静默调用)
     if args.auto:
+        if not target_dir or not is_valid_templates_dir(target_dir):
+            if sys.stdin.isatty():
+                target_dir = prompt_user_for_templates_dir()
+            if not target_dir:
+                print("\n[❌ 致命错误] 未能自动定位到 WorkBuddy templates 目录！")
+                print("请检查 WorkBuddy 是否已安装，或使用 --templates-dir 参数显式传入路径。")
+                sys.exit(1)
         print("=" * 65)
         print("  🤖 WorkBuddy Prompt Patcher - AI Agent / Automated Mode")
         print("=" * 65)
@@ -621,8 +882,8 @@ def main():
             print("\n[❌ 失败] 规则批量注入未成功完成。")
             sys.exit(1)
 
-    # 4. 默认交互式菜单 (面向人类开发者)
-    interactive_menu()
+    # 4. 默认交互式菜单 (面向人类开发者双击运行)
+    interactive_menu(target_dir)
 
 
 if __name__ == '__main__':
