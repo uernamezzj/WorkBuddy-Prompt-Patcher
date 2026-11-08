@@ -152,8 +152,23 @@ def resolve_to_templates_dir(input_path):
             except Exception:
                 pass
 
-    # 2. 如果输入的是可执行文件或直接文件，先取其父目录
+    # 2. macOS 应用程序包 (.app) 解析
+    if path.endswith('.app') or os.path.basename(path).endswith('.app'):
+        app_cands = [
+            os.path.join(path, "Contents", "Resources", "app.asar.unpacked", "resources", "templates"),
+            os.path.join(path, "Contents", "Resources", "templates"),
+        ]
+        for cand in app_cands:
+            if is_valid_templates_dir(cand):
+                return os.path.abspath(cand)
+
+    # 3. 如果输入的是可执行文件或直接文件，先取其父目录
     if os.path.isfile(path):
+        if '.app' in path:
+            app_root = path.split('.app')[0] + '.app'
+            cand = os.path.join(app_root, "Contents", "Resources", "app.asar.unpacked", "resources", "templates")
+            if is_valid_templates_dir(cand):
+                return os.path.abspath(cand)
         path = os.path.dirname(path)
 
     # 3. 自身已经是有效 templates 目录
@@ -203,7 +218,22 @@ def auto_detect_templates_dir():
 
     print("[🔍 智能定位] 正在全自动探测 WorkBuddy 安装路径...")
 
-    # 策略 2: 运行中进程探测 (毫秒级，最为精准)
+    # 策略 2: 运行中进程探测 (毫秒级，最为精准，跨平台兼容)
+    if sys.platform == 'darwin':
+        try:
+            import subprocess
+            out = subprocess.check_output(["pgrep", "-fl", "WorkBuddy"], text=True, errors='replace', timeout=3)
+            for line in out.splitlines():
+                parts = line.strip().split()
+                for part in parts:
+                    if ".app" in part:
+                        app_root = part.split(".app")[0] + ".app"
+                        resolved = resolve_to_templates_dir(app_root)
+                        if resolved:
+                            save_templates_dir(resolved)
+                            return resolved
+        except Exception:
+            pass
     try:
         import subprocess
         ps_cmd = 'Get-Process -Name "*WorkBuddy*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path'
@@ -277,6 +307,20 @@ def auto_detect_templates_dir():
                     return resolved
 
     # 策略 5: 默认已知路径与全盘启发式扫描
+    if sys.platform == 'darwin':
+        mac_checks = [
+            "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/resources/templates",
+            "/Applications/WorkBuddy.app/Contents/Resources/templates",
+            str(Path.home() / "Applications" / "WorkBuddy.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path.home() / "Applications" / "WorkBuddy.app" / "Contents" / "Resources" / "templates"),
+            "/Applications/CodeBuddy.app/Contents/Resources/app.asar.unpacked/resources/templates",
+        ]
+        for p in mac_checks:
+            if is_valid_templates_dir(p):
+                resolved = os.path.abspath(p)
+                save_templates_dir(resolved)
+                return resolved
+
     fixed_checks = [
         str(Path.home() / "AppData" / "Local" / "Programs" / "WorkBuddy" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
         *glob.glob(r"?:\Users\*\AppData\Local\Programs\WorkBuddy\resources\app.asar.unpacked\resources\templates"),

@@ -21,3 +21,7 @@ templates_backup_*/
 # Local user configs
 patcher_config.json
 
+# Release distributions
+dist/
+*.zip
+
