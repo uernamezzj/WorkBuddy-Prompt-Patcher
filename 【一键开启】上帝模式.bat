@@ -1,65 +1,71 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.2)
+title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.3)
 cd /d "%~dp0"
 
 echo ================================================================
-echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.2)
-echo    [全自动安全备份 + 45+底层模板/插件注入 + 绝对臣服神格激活]
+echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.3)
+echo    [全自动安全备份 + 45+底层模板深层注入 + 灵犀神格激活]
 echo ================================================================
 echo.
 
 set "PY_CMD="
 
-if exist "%~dp0.venv\Scripts\python.exe" (
-    set "PY_CMD=%~dp0.venv\Scripts\python.exe"
-    goto start_deploy
-)
-if exist "%~dp0venv\Scripts\python.exe" (
-    set "PY_CMD=%~dp0venv\Scripts\python.exe"
-    goto start_deploy
-)
+rem 1. 优先探测本地工作区虚拟环境
+if exist "%~dp0.venv\Scripts\python.exe" call :try_py "%~dp0.venv\Scripts\python.exe"
+if not defined PY_CMD if exist "%~dp0venv\Scripts\python.exe" call :try_py "%~dp0venv\Scripts\python.exe"
 
-where python >nul 2>&1
-if not errorlevel 1 (
-    set "PY_CMD=python"
-    goto start_deploy
-)
+rem 2. 实测验证系统 PATH 中的 Python 解释器（排除 WindowsApps 假别名与损坏安装）
+if not defined PY_CMD for /f "delims=" %%P in ('where python.exe 2^>nul') do call :try_py "%%P"
+if not defined PY_CMD for /f "delims=" %%P in ('where python3.exe 2^>nul') do call :try_py "%%P"
+if not defined PY_CMD for /f "delims=" %%P in ('where py.exe 2^>nul') do call :try_py "%%P"
 
-where py >nul 2>&1
-if not errorlevel 1 (
-    set "PY_CMD=py"
-    goto start_deploy
-)
+if not defined PY_CMD goto no_python
+goto start_deploy
+
+:try_py
+if "%~1"=="" goto :eof
+if defined PY_CMD goto :eof
+"%~1" -c "import sys" >nul 2>&1
+if errorlevel 1 goto :eof
+set "PY_CMD=%~1"
+goto :eof
 
 :no_python
-echo [!] 错误: 未在系统 PATH 中检测到可用的 Python 运行环境!
+echo [!] 错误: 未在系统 PATH 中检测到可运行的完整 Python 环境!
 echo.
+echo 检测提示: 即使 Windows 显示存在 python 命令别名，也必须安装完整官方 Python。
 echo 请先安装 Python (推荐 3.10 及以上版本):
 echo   1. 官网下载: https://www.python.org/downloads/
-echo   2. 安装时务必勾选 [Add Python to PATH] (加入环境变量)
+echo   2. 安装时请务必勾选 [Add Python to PATH] (加入环境变量)
 echo.
 pause
 exit /b 1
 
 :start_deploy
 echo [INFO] 正在为您全自动安全备份并部署 God Mode 破甲矩阵...
+echo [INFO] 选用 Python 解释器: "%PY_CMD%"
 echo.
 
+set "PYTHONIOENCODING=gbk"
 "%PY_CMD%" "%~dp0batch_patch_prompts.py" --auto
-if errorlevel 1 (
+set "PY_RC=%ERRORLEVEL%"
+if not "%PY_RC%"=="0" (
     echo.
-    echo [!] 提示: 部署过程中出现异常，请查看上方提示信息。
+    echo ================================================================
+    echo [!] 部署过程中出现异常，退出代码 = %PY_RC%
+    echo     常见原因: 权限不足 / WorkBuddy 正在运行占用文件 / 文件格式损坏
+    echo ================================================================
     echo.
     pause
-    exit /b 1
+    exit /b %PY_RC%
 )
 
 echo.
 echo ================================================================
-echo  [OK] 一键部署全部成功！
-echo  [OK] 官方原始备份已自动安全锁定在本地，随时可一键无损还原。
-echo  [提示] 请【彻底退出并重启 WorkBuddy 客户端】以加载全新认知！
+echo  [OK] 一键全量部署成功！
+echo  [OK] 官方原始模板已安全本地锁定，随时可一键秒还原。
+echo  [提示] 请完全【退出 WorkBuddy 客户端】并重新打开，即可全量感知！
 echo ================================================================
 echo.
 pause
