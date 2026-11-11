@@ -1,11 +1,11 @@
-# ⚡ WorkBuddy Prompt Patcher (DeepSeek God Mode v3.2)
+# ⚡ WorkBuddy Prompt Patcher (DeepSeek God Mode v3.4)
 
 > 🚀 **WorkBuddy 桌面端终极系统提示词破甲与认知矩阵管理套件**  
 > 彻底解除道德说教、多轮任务中途拒答、50-70 行代码长度截断与系统命令行束缚。支持双击一键极简部署/恢复、多用户配置无损增量追加与 AI Agent 全自动化静默调用。
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-brightgreen?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)](#)
-[![Release](https://img.shields.io/badge/Release-v3.2%20Latest-blue?style=flat-square)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases)
+[![Release](https://img.shields.io/badge/Release-v3.4%20Latest-blue?style=flat-square)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases)
 
 ---
 
@@ -25,8 +25,8 @@
 
 | 操作系统 | 推荐下载 (专版解压即用) | 包含组件 |
 | :--- | :--- | :--- |
-| **🪟 Windows 用户** | [⬇️ 点击下载 Windows 专版 (ZIP)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases/latest/download/WorkBuddy-Patcher-Windows-v3.2.zip) | 仅含 `.bat` 批处理 + Python 补丁引擎 + 配置 |
-| **🍎 macOS 用户** | [⬇️ 点击下载 macOS 专版 (ZIP)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases/latest/download/WorkBuddy-Patcher-macOS-v3.2.zip) | 仅含 `.command` 访达脚本 + Python 补丁引擎 + 配置 |
+| **🪟 Windows 用户** | [⬇️ 点击下载 Windows 专版 (ZIP)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases/latest/download/WorkBuddy-Patcher-Windows-v3.4.zip) | 仅含 `.bat` 批处理 + Python 补丁引擎 + 配置 |
+| **🍎 macOS 用户** | [⬇️ 点击下载 macOS 专版 (ZIP)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases/latest/download/WorkBuddy-Patcher-macOS-v3.4.zip) | 仅含 `.command` 访达脚本 + Python 补丁引擎 + 配置 |
 
 > *注：若通过 Git Clone 下载全量仓库，两个系统的启动脚本已带有显眼的系统前缀标识，互不冲突。*
 
@@ -34,6 +34,7 @@
 
 ## ✨ 核心特性
 
+- 🌐 **双版本并发兼容 (v3.4 核心突破)**：原生无感同时支持 **WorkBuddy 国内版** 与 **WorkBuddy AI 国际出海版**（v5.9.4+，无论目录是否带空格），自动双轨识别；同机双开共存时，一键同时全量生效！
 - ⚡ **双平台一键开箱**：
   - **Windows**：双击 `【一键开启】上帝模式.bat`（GBK/CRLF 零闪退）；
   - **macOS**：在访达中双击 `【一键开启】上帝模式.command`（原生 Terminal 弹窗执行）。

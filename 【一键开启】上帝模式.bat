@@ -1,10 +1,10 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.3)
+title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.4)
 cd /d "%~dp0"
 
 echo ================================================================
-echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.3)
+echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.4)
 echo    [全自动安全备份 + 45+底层模板深层注入 + 灵犀神格激活]
 echo ================================================================
 echo.
