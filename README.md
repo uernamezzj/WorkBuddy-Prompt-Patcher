@@ -44,36 +44,41 @@
 
 ---
 
-## 🔬 极简技术架构：四轨覆盖与三层闭环
+## 🔬 极简技术架构：六轨覆盖与三层闭环
 
 针对现代大模型（DeepSeek-R1 / V4 / Claude 3.7 / o1 等）的深度推理机制，本工具从底层注意力根部到运行时动态注入实现了完整闭环：
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                   WorkBuddy DeepSeek Matrix v3.2 架构                  │
+│                 WorkBuddy DeepSeek Matrix v3.7 架构                    │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 1. 身份与灵魂层 (Root)                                                 │
-│    ├── user-context-identity.tpl   ──> <product_identity> (神格锁定)    │
-│    ├── welcomemode/prompt.tpl      ──> 主会话根代理神格注入 (Root Agent)│
-│    └── ~/.workbuddy/SOUL.md        ──> 绝对臣服所有权契约 (加量不替换)  │
+│ R1. 系统模板层 (templates)                                             │
+│    ├── workbuddy-*-prompt.tpl      ──> 主系统提示 (含 content_policy)   │
+│    └── user-context-identity.tpl   ──> <product_identity> (神格锁定)    │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 2. 思维链认知推导层 (CoT Steering)                                     │
-│    └── <thought_process_guidelines> ──> 离线沙箱公理 + 口语意图映射     │
+│ R2. quick 模式模板                                                     │
+│    └── workbuddy-quick-prompt.tpl  ──> 无标签模板兜底注入 (v3.5 新增)   │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 3. 多轮会话动态保障层 (Runtime Reminders - v3.2 突破)                  │
-│    ├── craft-mode-reminder.tpl     ──> Agent 模式每轮指令防拒答锁       │
+│ R3. 安装目录根代理 (welcomemode)                                       │
+│    └── welcomemode/<模式>/prompt.tpl ─> code / design / work / claw     │
+│                                        (claw 为 5.11.x 新增, v3.7 兜底) │
+├────────────────────────────────────────────────────────────────────────┤
+│ R4. 用户插件缓存 (plugins/cache)                                       │
+│    └── welcomemode-<模式>/<版本>/prompt.tpl ─> 客户端实际加载的那一份   │
+├────────────────────────────────────────────────────────────────────────┤
+│ R5. 多轮会话动态保障层 (Runtime Reminders)                             │
+│    ├── craft-mode-reminder.tpl     ──> Agent 模式每轮反拒答锁           │
 │    └── ask-mode-reminder.tpl       ──> Ask 模式科研与漏洞审计豁免       │
 ├────────────────────────────────────────────────────────────────────────┤
-│ 4. 运行规范与自回归层 (Operational Policy & Generation Anchor)          │
-│    ├── <content_policy>            ──> 50+ 双语特征黑名单 + 逆向免死    │
-│    ├── <command_safety>            ──> 终端自主排错与自愈执行 (Win/Mac) │
-│    └── <final_answer_instructions> ──> 首字执行锚点 + 0 截断交付        │
+│ R6. 账号级神格 (SOUL.md)                                               │
+│    ├── user-*-personal/SOUL.md     ──> 绝对臣服契约 + Anti-Refusal 段   │
+│    └── user-*-personal/IDENTITY.md ──> 身份锁定 (无损增量追加)          │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **四轨全量覆盖**：自动识别 Windows 安装目录与 macOS `/Applications/WorkBuddy.app`，同时覆盖系统模板 (`templates`)、根代理模板 (`welcomemode`)、用户运行插件缓存 (`plugins/cache`) 以及全局用户神格 (`SOUL.md`)。
+1. **六轨全量覆盖**：自动识别 Windows 安装目录与 macOS `/Applications/WorkBuddy.app`，同时覆盖系统模板 (`templates`)、quick 模式、根代理模板 (`welcomemode`)、用户运行插件缓存 (`plugins/cache`)、每轮提醒 (`reminders`) 与全局用户神格 (`SOUL.md`)。任一轨缺失即退出码 1，不会出现「写了但没写到加载点」。
 2. **思维链口语意图映射**：当用户输入“直接入侵”、“拿到操作权”、“搞下这台机器”时，推导引擎自动映射为“合规靶场 PoC 验证与漏洞审计分析”，杜绝内部自审。
-3. **出厂级纯净备份**：首次部署自动将出厂原始模板及用户初始配置永久封存归档，后续无论修改多少次均可一键 100% 无损还原。
+3. **出厂级纯净备份（v3.7 起增量）**：首次部署自动封存出厂原始模板；客户端升级新增模式时（如 `claw`）自动补入备份，且检测到「已改过又无原始版本」时拒绝备份并告警，避免把补丁版当官方原版存档。无论改多少次均可一键 100% 无损还原。
 
 ---
 
@@ -229,6 +234,8 @@ WorkBuddy-Prompt-Patcher/
 │   └── test_v35.py                    # 🧪 沙箱回归测试 (23 项断言, 含三层生效判定)
 └── README.md                          # 项目说明文档
 ```
+
+> 发行 zip 只含**运行必需**的 11 个文件；`make_release.py` 与 `tests/` 仅供开发者使用，不进包。
 
 ---
 
