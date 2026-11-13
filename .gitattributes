@@ -1,4 +1,15 @@
+# Windows 批处理必须是 CRLF，否则 cmd 解析异常
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# macOS 访达脚本必须是 LF 且带执行位（git 索引 100755），否则双击报 Permission denied
 *.command text eol=lf
 *.sh text eol=lf
+
+# 文档与源码统一 LF
+*.md text eol=lf
+*.py text eol=lf
+*.txt text eol=lf
+
+# 图片按二进制处理，避免 git 尝试做换行转换
+*.png binary

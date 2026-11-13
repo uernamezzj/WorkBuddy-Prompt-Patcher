@@ -40,17 +40,17 @@
 3. **批量覆盖**：扫描 `app_temp/dist/renderer/assets/` 及 `app.asar.unpacked/` 中所有带有 `logo`、`icon`、`workbuddy` 关键字的 PNG/JPG 文件，统一替换为新的黑化版图标。
 4. **重新打包**：执行 `npx asar pack app_temp app.asar` 将修改后的前端资源重新打包。
 
-### 2.3 生成的黑化版图标/SVG 文件绝对路径
-所有的黑化版资源均保存在本地系统如下位置：
+### 2.3 黑化版图标资源产出
 
-* **黑化版 PNG 高清图标**：
-  `./assets/evil_workbuddy_icon_1784799193360.png`
+皮肤资源是本地一次性生成的个人产物，**没有纳入本仓库**（本仓库只保留 `assets/showcase.png` 一张效果图）。按 2.2 的流程自行替换后，产出三类文件：
 
-* **黑化版矢量 SVG (正方形 App Icon 版)**：
-  `./assets/evil_pwa-icon.svg`
+| 类型 | 说明 |
+| :--- | :--- |
+| PNG 高清图标 | 用于任务栏 / 窗口图标替换 |
+| 矢量 SVG（方形 App Icon 版） | 用于 `logo-workbuddy-*.svg` 等方形资源 |
+| 矢量 SVG（宽屏 Logo 徽标版） | 用于顶栏 / 侧栏横向徽标 |
 
-* **黑化版矢量 SVG (宽屏 Logo 徽标版)**：
-  `./assets/evil_logo.svg`
+放在任意本地目录即可，替换时按 2.2 的批量覆盖流程写入 `app_temp/`，路径无需写死。
 
 ### 2.4 核心 ASAR 路径与备份文件
 * **当前生效的已修改核心包**：

@@ -61,7 +61,7 @@
   - `renderer/assets/default-account-logo-DBnjou1P.png` (上限 `12,164` 字节)
   - `renderer/assets/assistant-avatar-C3supGLS.png` (上限 `4,918` 字节)
   - `renderer/assets/logo-workbuddy-BUNGQxi-.svg` (上限 `4,119` 字节)
-  直接替换物理图片后，框架无论怎么重绘或读取 `src` 属性，拿到的物理二进制文件本身就已经变成了 [icon.png](file:///D:/Projects/AI/WorkBuddy-skin/icon.png) 黑化猫咪图！
+  直接替换物理图片后，框架无论怎么重绘或读取 `src` 属性，拿到的物理二进制文件本身就已经变成了自定义的黑化猫咪图（本地生成的皮肤资源，不随仓库分发）。
 
 ### 2.6 前端双压机制 (CSS `content: url(...) !important` + JS Dynamic Interceptor)
 - **原理**：利用 Chromium 渲染引擎特性。
