@@ -1,8 +1,11 @@
-# Windows 批处理必须是 CRLF，否则 cmd 解析异常
-*.bat text eol=crlf
-*.cmd text eol=crlf
+# Windows 批处理：禁止 git 做换行转换（-text）
+# 原因：bat 里含 GBK 中文 + cmd 依赖 CRLF。若声明 text，仓库内会被规范成 LF，
+# 用户从网页「Download ZIP」拿到的就是 LF 版本，在部分 cmd 场景下 goto/call 会失败。
+# 用 -text 让 blob 原样保存 CRLF，clone 与 Download ZIP 都拿到 CRLF。
+*.bat -text
+*.cmd -text
 
-# macOS 访达脚本必须是 LF 且带执行位（git 索引 100755），否则双击报 Permission denied
+# macOS 访达脚本：必须 LF 且带执行位（git 索引 100755），否则双击报 Permission denied
 *.command text eol=lf
 *.sh text eol=lf
 
@@ -11,5 +14,5 @@
 *.py text eol=lf
 *.txt text eol=lf
 
-# 图片按二进制处理，避免 git 尝试做换行转换
+# 图片按二进制处理
 *.png binary
