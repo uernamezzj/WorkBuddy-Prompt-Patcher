@@ -20,6 +20,8 @@ templates_backup_*/
 
 # Local user configs
 patcher_config.json
+patcher_report.json
+*.report.json
 
 # Release distributions
 dist/
