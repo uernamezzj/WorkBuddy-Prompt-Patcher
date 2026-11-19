@@ -24,6 +24,7 @@ import shutil
 import re
 import json
 import glob
+import subprocess
 from pathlib import Path
 
 # 防 Windows GBK / 终端多语言编码打印崩溃
@@ -642,6 +643,9 @@ Ask mode restricts WRITE OPERATIONS, not what you are willing to answer. Never r
 
 def inject_incremental(file_path, bak_path, marker_begin, marker_end, new_content):
     """增量追加或更新神格矩阵，100%保留用户原有所有个性化设置与习惯 (加量不替换)"""
+    # 预演模式：只回显不落盘（原实现直接 write_text，预演也会真的改文件）
+    if DRY_RUN:
+        return
     # 1. 确保首次备份原始文件
     if file_path.exists() and not bak_path.exists():
         try:
@@ -775,9 +779,11 @@ def sync_reminders(templates_dir):
 
     for fpath, content in [(craft_file, CRAFT_REMINDER_CONTENT), (ask_file, ASK_REMINDER_CONTENT)]:
         if fpath.exists():
-            bak_path = fpath.with_suffix(".tpl.bak")
-            if not bak_path.exists():
+            # macOS: .tpl.bak 写在 bundle 内会破坏 codesign 封章 → 改存用户级目录
+            bak_path = get_reminder_bak_path(templates_dir, fpath)
+            if bak_path and not bak_path.exists() and not DRY_RUN:
                 try:
+                    bak_path.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(fpath, bak_path)
                 except Exception:
                     pass
@@ -797,8 +803,8 @@ def restore_reminders(templates_dir):
         return
     for fname in ["craft-mode-reminder.tpl", "ask-mode-reminder.tpl"]:
         fpath = Path(templates_dir) / fname
-        bak_path = Path(templates_dir) / f"{fname}.bak"
-        if bak_path.exists():
+        bak_path = get_reminder_bak_path(templates_dir, fpath)
+        if bak_path and bak_path.exists():
             try:
                 shutil.copy2(bak_path, fpath)
             except Exception:
@@ -817,8 +823,87 @@ def safe_relpath(path, base):
 # 模板备份与还原 (全矩阵四轨覆盖：templates + app welcomemode + plugin cache + marketplace)
 # ==============================================================================
 def get_backup_dir(templates_dir):
-    """获取模板备份目录"""
+    """获取模板备份目录
+
+    macOS 关键差异：WorkBuddy.app 是 Apple 公证过的签名包，CodeResources 会
+    封章 bundle 内的每一个文件。只要在 bundle 里「新增」任何文件
+    （哪怕只是备份目录），codesign --verify 就会报
+    "a sealed resource is missing or invalid"，应用可能无法启动。
+
+    因此 macOS 一律把备份放到用户级状态目录（~/Library/Application Support/
+    WorkBuddyPatcher/backups/...），绝不写进 .app 里。
+    Windows 保持原样（写在 resources 同级，行为不变）。
+    """
+    if sys.platform == 'darwin':
+        import hashlib
+        key = hashlib.sha1(str(templates_dir).encode('utf-8')).hexdigest()[:12]
+        return os.path.join(STATE_DIR, "backups", key, "templates")
     return os.path.join(os.path.dirname(templates_dir), "templates_backup")
+
+
+def get_welcomemode_backup_dir(templates_dir):
+    """根代理模板 (welcomemode/*/prompt.tpl) 的备份目录
+
+    macOS: 与 templates 备份同理，必须在 .app 之外，否则破坏签名封章。
+    """
+    if sys.platform == 'darwin':
+        import hashlib
+        key = hashlib.sha1(str(templates_dir).encode('utf-8')).hexdigest()[:12]
+        return os.path.join(STATE_DIR, "backups", key, "welcomemode")
+    resources_parent = os.path.dirname(templates_dir)
+    return os.path.join(resources_parent, "welcomemode_backup")
+
+
+def get_reminder_bak_path(templates_dir, fpath):
+    """reminder 模板的 .bak 备份路径
+
+    macOS: 不能写在 .app bundle 内（破坏 codesign 封章），
+    改写到用户级状态目录；Windows 保持原样。
+    """
+    if sys.platform == 'darwin':
+        import hashlib
+        key = hashlib.sha1(str(templates_dir).encode('utf-8')).hexdigest()[:12]
+        return Path(STATE_DIR) / "backups" / key / "reminders" / fpath.name
+    return Path(fpath).with_suffix(".tpl.bak")
+
+
+def get_macos_app_bundle(templates_dir):
+    """从 templates 目录反推 .app 包根路径（仅 macOS）"""
+    if sys.platform != 'darwin':
+        return None
+    try:
+        p = Path(templates_dir).resolve()
+        for parent in p.parents:
+            if parent.suffix == '.app':
+                return parent
+    except Exception:
+        pass
+    return None
+
+
+def resign_macos_app(templates_dir, quiet=False):
+    """macOS: 修改 .app 内文件后必须重签名，否则 codesign 封章失效导致无法启动。
+
+    返回 (ok: bool, msg: str)
+    """
+    app = get_macos_app_bundle(templates_dir)
+    if not app:
+        return False, "未定位到 .app 包"
+    script = os.path.join(SCRIPT_DIR, "macos_resign.sh")
+    if not os.path.isfile(script):
+        return False, "缺少 macos_resign.sh"
+    try:
+        import subprocess
+        proc = subprocess.run(["/bin/bash", script, str(app)],
+                              capture_output=True, text=True, timeout=1800)
+        if proc.returncode != 0:
+            return False, (proc.stdout or "")[-400:] + (proc.stderr or "")[-400:]
+        if not quiet:
+            print(f"\n[🔏 macOS 重签名] 已按「由内到外」顺序 ad-hoc 重签: {app}")
+            print("    (保留 allow-jit 等 entitlements，Electron 的 V8 JIT 需要它)")
+        return True, "ok"
+    except Exception as e:
+        return False, str(e)
 
 
 def get_user_plugin_template_files():
@@ -896,11 +981,18 @@ def describe_template_tags(fpath):
 
 
 def ensure_backup(templates_dir, quiet=False):
-    """确保官方原始模板（包含 templates、welcomemode、以及插件运行缓存）已被安全备份并永久锁定"""
+    """确保官方原始模板（包含 templates、welcomemode、以及插件运行缓存）已被安全备份并永久锁定
+
+    DRY_RUN 时直接跳过：预演绝不应在磁盘上产生任何副作用。
+    （原实现不区分预演，会真的建出备份目录 —— 在 macOS 上这会写进
+     已签名的 .app 包内，破坏 codesign 封章。）
+    """
+    if DRY_RUN:
+        return True
     backup_dir = get_backup_dir(templates_dir)
     resources_parent = os.path.dirname(templates_dir)
     welcomemode_dir = os.path.join(resources_parent, "plugins", "workbuddy-builtin", "welcomemode")
-    welcomemode_backup = os.path.join(resources_parent, "welcomemode_backup")
+    welcomemode_backup = get_welcomemode_backup_dir(templates_dir)
     wb_dirs = get_workbuddy_user_dirs()
     newly_created = False
 
@@ -1025,7 +1117,7 @@ def restore_backup(templates_dir, non_interactive=False, restore_soul=True):
         # 2. 还原 welcomemode 根模板
         resources_parent = os.path.dirname(templates_dir)
         welcomemode_dir = os.path.join(resources_parent, "plugins", "workbuddy-builtin", "welcomemode")
-        welcomemode_backup = os.path.join(resources_parent, "welcomemode_backup")
+        welcomemode_backup = get_welcomemode_backup_dir(templates_dir)
         if os.path.exists(welcomemode_backup) and os.path.isdir(welcomemode_dir):
             wm_count = 0
             for item in os.listdir(welcomemode_backup):
@@ -1722,19 +1814,63 @@ def main_prompt_templates(templates_dir):
     return sorted(p for p in td.glob("workbuddy-*.tpl") if "prompt" in p.name and p.name not in FALLBACK_EXCLUDE)
 
 
+def resolve_app_version(templates_dir):
+    """解析客户端真实版本号（跨平台）
+
+    Windows: 读 <resources>/install-manifest.json 的 appVersion
+    macOS  : 读 .app/Contents/Info.plist 的 CFBundleShortVersionString
+
+    为什么必须有这个：R4 轨要挑「与客户端自身版本匹配」的插件缓存目录。
+    拿不到版本号就会退化成「按 mtime 取最新」，在客户端升级后新旧目录并存时
+    会选错目录 —— 补丁写进了客户端根本不加载的那一份。
+    """
+    td = Path(templates_dir)
+    # --- macOS: Info.plist ---
+    if sys.platform == 'darwin':
+        try:
+            for parent in td.resolve().parents:
+                if parent.suffix == '.app':
+                    plist = parent / "Contents" / "Info.plist"
+                    if plist.is_file():
+                        out = subprocess.check_output(
+                            ["/usr/libexec/PlistBuddy", "-c",
+                             "Print :CFBundleShortVersionString", str(plist)],
+                            text=True, errors="replace", timeout=5).strip()
+                        if out:
+                            return out
+                    break
+        except Exception:
+            pass
+    # --- Windows / 通用: install-manifest.json ---
+    for cand in (td.parents[2] / "install-manifest.json" if len(td.parents) > 2 else None,
+                 td.parent / "install-manifest.json"):
+        try:
+            if cand and cand.is_file():
+                v = json.loads(_read_text(cand)).get("appVersion", "") or ""
+                if v:
+                    return v
+        except Exception:
+            continue
+    return ""
+
+
 def collect_fingerprint(templates_dir):
     """采集版本指纹：patcher 版本 + WorkBuddy 客户端版本 + 各插件缓存版本"""
     td = Path(templates_dir)
     fp = {"patcher": PATCHER_VERSION, "templates_dir": str(td),
           "appVersion": "?", "installDir": "?", "plugins": {}}
     try:
+        fp["appVersion"] = resolve_app_version(templates_dir) or "?"
         outer_resources = td.parents[2]          # <install>/resources
         man = outer_resources / "install-manifest.json"
         if man.is_file():
-            fp["appVersion"] = json.loads(_read_text(man)).get("appVersion", "?")
             fp["installDir"] = str(outer_resources.parent)
     except Exception:
         pass
+    if sys.platform == 'darwin':
+        app = get_macos_app_bundle(templates_dir)
+        if app:
+            fp["installDir"] = str(app)
     for wb_dir in get_workbuddy_user_dirs():
         for sub in ("cache", "marketplaces"):
             base = wb_dir / "plugins" / sub / "workbuddy-builtin"
@@ -1748,18 +1884,40 @@ def collect_fingerprint(templates_dir):
 
 
 def detect_running_clients():
-    """检测是否有 WorkBuddy / supervisor 进程在跑（会持有 .tpl 句柄并原子重写）"""
+    """检测是否有 WorkBuddy / supervisor 进程在跑（会持有 .tpl 句柄并原子重写）
+
+    macOS/Linux 注意：不能用 `pgrep -fl WorkBuddy` 这种模糊匹配 ——
+    本工具自身的路径就叫 WorkBuddy-Prompt-Patcher，pgrep 会把自己的命令行
+    也匹上，导致「误判客户端在运行」，进而让 --require-closed 错误地中止。
+
+    因此改为：只认「可执行文件确实位于某个 WorkBuddy.app 包内」的进程，
+    并排除本脚本自身及其父 shell。
+    """
     names = []
     try:
-        import subprocess
         if sys.platform == "win32":
+            import subprocess
             ps = ('Get-Process -Name "*WorkBuddy*","*workbuddy*" -ErrorAction SilentlyContinue '
                   '| Select-Object -ExpandProperty ProcessName')
             out = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
                                           text=True, errors="replace", timeout=6)
+            names = sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
         else:
-            out = subprocess.check_output(["pgrep", "-fl", "WorkBuddy"], text=True, errors="replace", timeout=6)
-        names = sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
+            import subprocess
+            # 精确匹配：进程的可执行文件路径落在 *.app/Contents/ 内
+            out = subprocess.check_output(
+                ["pgrep", "-fl", r"/WorkBuddy[^/]*\.app/Contents/"],
+                text=True, errors="replace", timeout=6)
+            self_pids = {str(os.getpid()), str(os.getppid())}
+            for ln in out.splitlines():
+                ln = ln.strip()
+                if not ln:
+                    continue
+                pid = ln.split(None, 1)[0]
+                if pid in self_pids:
+                    continue
+                names.append(ln)
+            names = sorted(set(names))
     except Exception:
         pass
     return names
@@ -1867,16 +2025,7 @@ def verify_matrix(templates_dir):
     # R4 用户缓存：客户端只加载「与自身 appVersion 匹配」的版本目录
     # 关键：不能用 mtime 挑最新——新旧版本目录并存时 mtime 会误导，
     # 且客户端升级后新目录是从 marketplace 解出的原版，旧目录的补丁是孤儿。
-    app_ver = ""
-    for man in (td.parents[2] / "install-manifest.json" if len(td.parents) > 2 else None,
-                res_parent / "install-manifest.json"):
-        try:
-            if man and man.is_file():
-                app_ver = json.loads(_read_text(man)).get("appVersion", "") or ""
-                if app_ver:
-                    break
-        except Exception:
-            continue
+    app_ver = resolve_app_version(templates_dir)
 
     latest = []
     mismatch = []
@@ -1994,28 +2143,67 @@ def get_oldest_client_start():
     实现要点：不让 PowerShell 输出本地化日期字符串（中文系统会输出
     「2026年11月13日 18:39:17」，且经管道时按 GBK 编码，Python 侧解码会乱），
     改为输出 .NET UTC ticks（纯整数），再做换算，彻底规避 locale 与编码问题。
+
+    macOS/Linux：用 `ps -o etime=` 读已运行时长（纯秒数，无 locale 问题），
+    再用「当前时间 - 时长」反推启动时刻。比 `lstart=` 稳（后者受系统语言影响）。
     """
     try:
         import subprocess
         import datetime as _dt
-        if sys.platform != "win32":
+        if sys.platform == "win32":
+            ps = ('Get-Process -Name "*WorkBuddy*" -ErrorAction SilentlyContinue '
+                  '| Sort-Object StartTime | Select-Object -First 1 '
+                  '| ForEach-Object { $_.StartTime.ToUniversalTime().Ticks }')
+            out = subprocess.check_output(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                text=True, errors="replace", timeout=8)
+            digits = "".join(ch for ch in out if ch.isdigit())
+            if not digits:
+                return None
+            ticks = int(digits)
+            if ticks <= 0:
+                return None
+            # .NET ticks: 自 0001-01-01 起的 100 纳秒数
+            dt_utc = _dt.datetime(1, 1, 1) + _dt.timedelta(microseconds=ticks // 10)
+            # 转本地时区（naive，便于与文件 mtime 比较）
+            return dt_utc.replace(tzinfo=_dt.timezone.utc).astimezone().replace(tzinfo=None)
+
+        # --- macOS / Linux ---
+        # 取最早启动的那个客户端 PID（etime 最大的那个 = 启动最早）
+        pids = []
+        for line in detect_running_clients():
+            head = line.split(None, 1)[0]
+            if head.isdigit():
+                pids.append(head)
+        if not pids:
             return None
-        ps = ('Get-Process -Name "*WorkBuddy*" -ErrorAction SilentlyContinue '
-              '| Sort-Object StartTime | Select-Object -First 1 '
-              '| ForEach-Object { $_.StartTime.ToUniversalTime().Ticks }')
-        out = subprocess.check_output(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
-            text=True, errors="replace", timeout=8)
-        digits = "".join(ch for ch in out if ch.isdigit())
-        if not digits:
+        best = None
+        for pid in pids:
+            try:
+                out = subprocess.check_output(
+                    ["ps", "-o", "etime=", "-p", pid],
+                    text=True, errors="replace", timeout=4).strip()
+            except Exception:
+                continue
+            if not out:
+                continue
+            # etime 格式: [[DD-]HH:]MM:SS
+            days = 0
+            if "-" in out:
+                dpart, out = out.split("-", 1)
+                days = int(dpart)
+            parts = [int(x) for x in out.split(":")]
+            while len(parts) < 3:
+                parts.insert(0, 0)
+            secs = days * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+            if best is None or secs > best[0]:
+                best = (secs, pid)
+        if not best:
             return None
-        ticks = int(digits)
-        if ticks <= 0:
-            return None
-        # .NET ticks: 自 0001-01-01 起的 100 纳秒数
-        dt_utc = _dt.datetime(1, 1, 1) + _dt.timedelta(microseconds=ticks // 10)
-        # 转本地时区（naive，便于与文件 mtime 比较）
-        return dt_utc.replace(tzinfo=_dt.timezone.utc).astimezone().replace(tzinfo=None)
+        now = _dt.datetime.now()
+        return now - _dt.timedelta(seconds=best[0])
+    except Exception:
+        return None
     except Exception:
         return None
 
@@ -2351,6 +2539,20 @@ def main():
         if args.restore:
             print("\n>>> 正在还原所有用户全局神格矩阵与个性化配置...")
             restore_soul_files(non_interactive=True)
+        # macOS: 还原同样改动了 .app 内文件 → 必须重签名，否则 codesign 封章失效
+        if sys.platform == 'darwin' and not DRY_RUN:
+            print("\n>>> macOS: 正在重签名应用包 (还原后同样需要)...")
+            for tdir in target_dirs:
+                app = get_macos_app_bundle(tdir)
+                if not app:
+                    print(f"    [--] 非 .app 布局，跳过重签名: {tdir}")
+                    continue
+                ok, msg = resign_macos_app(tdir, quiet=True)
+                if ok:
+                    print(f"    [OK] {app}")
+                else:
+                    print(f"    [!!] 重签名失败: {msg}")
+                    overall_success = False
         if overall_success:
             print("\n[🎉 还原成功] 所有 WorkBuddy 官方原始模板与配置已完整恢复！")
             sys.exit(0)
@@ -2383,6 +2585,22 @@ def main():
         if sync_soul:
             print("\n>>> 正在无损增量同步神格契约到所有个人配置目录...")
             sync_soul_files(non_interactive=True)
+        # macOS: 改写了 .app 内文件 → codesign 封章失效 → 必须重签名，
+        # 否则 codesign --verify / spctl 判定不可信，应用可能无法启动。
+        if sys.platform == 'darwin' and not DRY_RUN:
+            print("\n>>> macOS: 正在重签名应用包 (修改 .app 内文件后必须，否则无法启动)...")
+            for tdir in target_dirs:
+                app = get_macos_app_bundle(tdir)
+                if not app:
+                    # 非 .app 布局（如测试沙箱），无需重签
+                    print(f"    [--] 非 .app 布局，跳过重签名: {tdir}")
+                    continue
+                ok, msg = resign_macos_app(tdir, quiet=True)
+                if ok:
+                    print(f"    [OK] {app}")
+                else:
+                    print(f"    [!!] 重签名失败: {msg}")
+                    overall_success = False
         # v3.5: 神格同步完成后统一做六轨校验（R6 依赖 SOUL 已写入）
         for tdir in target_dirs:
             ok, _ = run_verify(tdir)

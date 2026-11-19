@@ -49,6 +49,8 @@ INCLUDE_FILES = [
     "【一键开启】上帝模式.command",
     "【一键恢复】官方原版.command",
     "【检测部署】验证破甲是否生效.command",
+    "macos_resign.sh",
+    "README-macOS.md",
 ]
 INCLUDE_DIRS = ["assets"]
 
