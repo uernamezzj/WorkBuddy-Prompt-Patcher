@@ -23,6 +23,7 @@
 # ==============================================================================
 
 APP="${1:-/Applications/WorkBuddy.app}"
+APP="${APP%/}"
 
 if [ ! -d "$APP" ]; then
   echo "[!] 找不到应用包: $APP"
@@ -52,7 +53,7 @@ done)"
 # --- 2. 收集嵌套 bundle ---
 BUNDLES="$(find "$APP" \
   \( -name '*.app' -o -name '*.framework' -o -name '*.appex' -o -name '*.xpc' \) \
-  -type d 2>/dev/null | grep -v "^${APP}$" | sort)"
+  -type d 2>/dev/null | grep -Fxv "$APP" | sort)"
 
 # --- 3. 先签叶子（最内层） ---
 LC=0
@@ -82,11 +83,12 @@ fi
 # --- 6. 校验 ---
 echo "==> 校验签名完整性..."
 VERIFY_OUT="$(codesign --verify --deep --strict "$APP" 2>&1)"
-if [ -z "$VERIFY_OUT" ]; then
+VERIFY_RC=$?
+if [ "$VERIFY_RC" -eq 0 ] && [ -z "$VERIFY_OUT" ]; then
   echo "    [OK] codesign --verify --deep --strict 通过"
+  exit 0
 else
-  echo "    [!!] 仍有告警:"
-  echo "$VERIFY_OUT" | head -6
+  echo "    [!!] codesign 校验未通过 (exit=$VERIFY_RC):"
+  echo "$VERIFY_OUT" | head -8
+  exit 1
 fi
-
-exit 0

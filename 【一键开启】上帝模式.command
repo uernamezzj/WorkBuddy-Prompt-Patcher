@@ -29,13 +29,19 @@ fi
 echo "[INFO] 正在为您全自动安全备份并部署 God Mode 破甲矩阵..."
 echo ""
 
-"$PY_CMD" "./batch_patch_prompts.py" --auto
-if [ $? -ne 0 ]; then
+"$PY_CMD" "./batch_patch_prompts.py" --auto --require-closed
+PY_RC=$?
+if [ "$PY_RC" -ne 0 ]; then
     echo ""
-    echo "[!] 提示: 运行出现异常，请查看上方提示信息。"
+    if [ "$PY_RC" -eq 2 ]; then
+        echo "[!] 检测到 WorkBuddy 客户端正在运行，已主动中止。"
+        echo "    请先完全退出客户端 (Command+Q，确认活动监视器里无 WorkBuddy 进程) 后重跑。"
+    else
+        echo "[!] 提示: 运行出现异常 (退出码=$PY_RC)，请查看上方提示信息。"
+    fi
     echo ""
     read -n 1 -s -r -p "按任意键退出..."
-    exit 1
+    exit "$PY_RC"
 fi
 
 echo ""

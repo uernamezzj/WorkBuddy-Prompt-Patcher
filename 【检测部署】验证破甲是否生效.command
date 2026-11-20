@@ -120,7 +120,7 @@ echo "    -> $WM_OK/$WM_ALL"
 echo
 
 echo "[4/5] 检测账号级 SOUL.md  (神格契约)"
-for f in "$HOME"/.workbuddy/user-*-personal/SOUL.md "$HOME"/.workbuddy-ai/user-*-personal/SOUL.md; do
+for f in "$HOME"/.workbuddy/user-*/SOUL.md "$HOME"/.workbuddy-ai/user-*/SOUL.md; do
   [ -f "$f" ] || continue
   SOUL_ALL=$((SOUL_ALL+1))
   if grep -qF "$FS" "$f" 2>/dev/null; then
@@ -150,7 +150,7 @@ for app in "${INSTS[@]}"; do
   done
 done
 echo "    -> $REM_OK/$REM_ALL 含每轮反拒答锁"
-if pgrep -f "WorkBuddy.app/Contents/MacOS" >/dev/null 2>&1; then
+if pgrep -f "/WorkBuddy[^/]*\.app/Contents/" >/dev/null 2>&1; then
   RUNNING=1
   echo "    [运行中] 检测到 WorkBuddy 进程"
 else

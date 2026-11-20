@@ -48,7 +48,7 @@ echo [INFO] —°”√ Python Ω‚ Õ∆˜: "%PY_CMD%"
 echo.
 
 set "PYTHONIOENCODING=gbk"
-"%PY_CMD%" "%~dp0batch_patch_prompts.py" --auto
+"%PY_CMD%" "%~dp0batch_patch_prompts.py" --auto --require-closed
 set "PY_RC=%ERRORLEVEL%"
 if not "%PY_RC%"=="0" (
     echo.

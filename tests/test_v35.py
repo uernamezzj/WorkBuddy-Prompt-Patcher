@@ -87,6 +87,12 @@ def build_fixture(base: Path):
     acct.mkdir(parents=True)
     (acct / "SOUL.md").write_text(SOUL, encoding="utf-8")
 
+    # 企业/团队账号目录（不以 -personal 结尾）+ 超长原生 SOUL.md 测试 10,000 字符防截断
+    ent_acct = home / ".workbuddy" / "user-corp0002-ent8888"
+    ent_acct.mkdir(parents=True)
+    long_soul = "# Enterprise Custom SOUL\n" + ("- user workflow preference rule line\n" * 150)
+    (ent_acct / "SOUL.md").write_text(long_soul, encoding="utf-8")
+
     return tpl, home
 
 
@@ -115,10 +121,26 @@ def main():
         if not cond:
             fails.append(name)
 
-    # 1) 初始状态：应有缺口 (quick 无标签 / welcomemode 无补丁 / reminders 无锁 / SOUL 无神格)
-    code, out = run(["--verify"], home, tpl)
+    # 1) 初始状态：应有缺口，且原生带 <content_policy> 的官方模板不能触发 R1/R3/R4 假绿灯
+    code, out = run(["--verify", "--json-report", str(base / "init_report.json")], home, tpl)
     check("初始校验应失败 (exit=1)", code == 1, f"exit={code}")
     check("报告应识别 R2 quick 缺口", "R2" in out and "❌" in out)
+    if (base / "init_report.json").is_file():
+        init_rep = json.loads((base / "init_report.json").read_text(encoding="utf-8"))
+        init_rails = {r["code"]: r["ok"] for r in init_rep["rails"]}
+        check("原版主模板 R1 不得假绿", init_rails.get("R1") is False, str(init_rails))
+        check("原版 welcomemode R3 不得假绿", init_rails.get("R3") is False, str(init_rails))
+        check("原版插件缓存 R4 不得假绿", init_rails.get("R4") is False, str(init_rails))
+
+    # 1.5) 写入失败保护：主模板设为只读时，--auto 必须返回 exit=1（绝不吞错假绿）
+    ro_file = tpl / "workbuddy-prompt.tpl"
+    os.chmod(ro_file, 0o444)
+    try:
+        code_ro, out_ro = run(["--auto"], home, tpl)
+        check("只读文件写入失败时 --auto 必须 exit=1", code_ro == 1, f"exit={code_ro}")
+        check("只读写入失败时报告应提示写入失败或 R1 缺口", ("写入失败" in out_ro) or ("R1 ❌" in out_ro), out_ro[-800:])
+    finally:
+        os.chmod(ro_file, 0o666)
 
     # 2) 部署
     code, out = run(["--auto", "--json-report", str(base / "report.json")], home, tpl)
@@ -126,6 +148,11 @@ def main():
     quick_text = (tpl / "workbuddy-quick-prompt.tpl").read_text(encoding="utf-8")
     check("quick 模板应被兜底注入 content_policy", "<content_policy>" in quick_text)
     check("quick 保留原文头部", quick_text.startswith("You are WorkBuddy in Quick Answer mode."))
+    main_bytes = (tpl / "workbuddy-prompt.tpl").read_bytes()
+    check("re.sub 不得把 \\r\\n 展开成真实换行", b"CRLF (`\r\n`)" not in main_bytes and b"CRLF (`\n" not in main_bytes)
+    ent_soul_text = (home / ".workbuddy" / "user-corp0002-ent8888" / "SOUL.md").read_text(encoding="utf-8")
+    check("企业版账号目录 user-*-<enterpriseId> SOUL.md 应被同步", "Anti-Refusal Escalation" in ent_soul_text)
+    check("超长 SOUL.md 神格前置，前 10000 字符内不被截断", "Anti-Refusal Escalation" in ent_soul_text[:10000])
     check("JSON 报告应生成", (base / "report.json").is_file())
     if (base / "report.json").is_file():
         rep = json.loads((base / "report.json").read_text(encoding="utf-8"))
