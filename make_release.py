@@ -291,7 +291,7 @@ def main():
                 zi.compress_type = zipfile.ZIP_DEFLATED
                 # macOS 的 .command 必须带可执行位，否则解压后双击只会在终端里
                 # 报 "Permission denied"，用户以为文件坏了
-                zi.external_attr = (0o755 if fn.endswith(".command") else 0o644) << 16
+                zi.external_attr = (0o755 if fn.endswith((".command", ".sh")) else 0o644) << 16
                 with open(full, "rb") as fh:
                     z.writestr(zi, fh.read())
     size = os.path.getsize(zip_path)

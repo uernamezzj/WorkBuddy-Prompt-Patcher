@@ -1884,7 +1884,7 @@ def interactive_menu(templates_dir=None):
 #   4. 客户端升级后插件缓存目录名带版本哈希，旧补丁变孤儿却无人知晓
 #   5. 没有覆盖矩阵：用户无法知道 4 轨覆盖到几轨
 # ==============================================================================
-PATCHER_VERSION = "v3.7"
+PATCHER_VERSION = "v3.7.1"
 DRY_RUN = False
 VERBOSE_OUTPUT = False   # True 时打印完整六轨明细与三层生效判定（--verbose）
 
