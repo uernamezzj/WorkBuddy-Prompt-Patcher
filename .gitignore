@@ -27,3 +27,7 @@ patcher_report.json
 dist/
 *.zip
 
+# Local-only docs (含本机路径 / PR 素材, 不进发行/PR)
+Linux部署操作手册.md
+PR_DESCRIPTION.md
+

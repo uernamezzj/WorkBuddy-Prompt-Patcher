@@ -5,7 +5,8 @@
 
 分发设计原则：**包内零绝对路径**
   v3.5 起，运行时状态（配置记忆、校验报告）全部落在用户级目录
-  （Windows: %LOCALAPPDATA%\\WorkBuddyPatcher；macOS: ~/Library/Application Support/WorkBuddyPatcher），
+  （Windows: %LOCALAPPDATA%\\WorkBuddyPatcher；macOS: ~/Library/Application Support/WorkBuddyPatcher；
+  Linux: $XDG_STATE_HOME/workbuddy-patcher），
   项目目录本身不再出现任何本机路径，整个目录可整体拷走直接使用。
   脚本内部一律用 SCRIPT_DIR / %~dp0 / Path.home() / 环境变量定位，
   不写死盘符，也不依赖本机安装位置。
@@ -51,6 +52,13 @@ INCLUDE_FILES = [
     "【检测部署】验证破甲是否生效.command",
     "macos_resign.sh",
     "README-macOS.md",
+    # Linux 适配版
+    "linux_common.sh",
+    "【一键开启】上帝模式.sh",
+    "【一键恢复】官方原版.sh",
+    "【检测部署】验证破甲是否生效.sh",
+    "一键修改提示词.sh",
+    "README-Linux.md",
 ]
 INCLUDE_DIRS = ["assets"]
 
@@ -129,7 +137,7 @@ ALLOWED_ABS_PREFIXES = (
     r"%userprofile%",
     r"<安装盘>",
 )
-TEXT_EXT = (".py", ".bat", ".command", ".md", ".txt", ".json", ".cfg", ".ini", ".toml", ".yml", ".yaml")
+TEXT_EXT = (".py", ".bat", ".command", ".sh", ".md", ".txt", ".json", ".cfg", ".ini", ".toml", ".yml", ".yaml")
 
 
 def _local_usernames():

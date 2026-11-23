@@ -45,6 +45,30 @@ BUFFER_FILE_NAME = "custom_input.txt"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BUFFER_FILE_PATH = os.path.join(SCRIPT_DIR, BUFFER_FILE_NAME)
 
+IS_LINUX = sys.platform.startswith("linux")
+
+
+def _real_user_home():
+    """返回真实使用者的 HOME（sudo 提权时不能错用 /root）。
+
+    Linux 的客户端通常装在 /opt/WorkBuddy（root:root 755），改模板必须 sudo。
+    一旦提权，os.path.expanduser('~') 会指向 /root，于是 SOUL.md 被写进
+    /root/.workbuddy —— 当前登录用户完全加载不到，文件层全绿却毫无效果。
+    这里在 sudo 环境下改用 SUDO_USER 对应的原始 HOME。
+    """
+    try:
+        if os.name == 'posix' and hasattr(os, 'geteuid') and os.geteuid() == 0:
+            sudo_user = os.environ.get('SUDO_USER')
+            if sudo_user and sudo_user != 'root':
+                import pwd
+                try:
+                    return pwd.getpwnam(sudo_user).pw_dir
+                except KeyError:
+                    pass
+    except Exception:
+        pass
+    return os.path.expanduser('~')
+
 
 def get_state_dir():
     """运行时状态目录（配置记忆 / 校验报告）。
@@ -62,14 +86,14 @@ def get_state_dir():
             return p
         if sys.platform == 'win32':
             base = os.environ.get('LOCALAPPDATA') or os.path.join(
-                os.path.expanduser('~'), 'AppData', 'Local')
+                _real_user_home(), 'AppData', 'Local')
             p = os.path.join(base, 'WorkBuddyPatcher')
         elif sys.platform == 'darwin':
-            p = os.path.join(os.path.expanduser('~'), 'Library',
+            p = os.path.join(_real_user_home(), 'Library',
                              'Application Support', 'WorkBuddyPatcher')
         else:
             base = os.environ.get('XDG_STATE_HOME') or os.path.join(
-                os.path.expanduser('~'), '.local', 'state')
+                _real_user_home(), '.local', 'state')
             p = os.path.join(base, 'workbuddy-patcher')
         os.makedirs(p, exist_ok=True)
         return p
@@ -324,6 +348,35 @@ def resolve_to_templates_dir(input_path):
     return None
 
 
+def _linux_client_processes():
+    """Linux: 精确列出 WorkBuddy 客户端进程，返回 [(pid, exe_abs_path), ...]。
+
+    判据是 /proc/<pid>/exe 真正指向的二进制文件，而不是命令行里出现过
+    "workbuddy" 字样 —— 后者会把本工具自身、调用它的 shell 以及任何
+    路径含 WorkBuddy-Prompt-Patcher 的进程都匹上，导致 --require-closed
+    永远误判「客户端正在运行」。
+    """
+    result = []
+    try:
+        pids = subprocess.check_output(
+            ["pgrep", "-f", "workbuddy"], text=True, errors='replace', timeout=6
+        ).split()
+    except Exception:
+        return result
+    self_pids = {str(os.getpid()), str(os.getppid())}
+    for pid in pids:
+        if not pid.isdigit() or pid in self_pids:
+            continue
+        try:
+            exe = os.readlink(f"/proc/{pid}/exe")
+        except Exception:
+            continue
+        if os.path.basename(exe).lower() not in ("workbuddy", "workbuddy-ai", "codebuddy"):
+            continue
+        result.append((pid, exe))
+    return result
+
+
 def find_all_templates_dirs():
     r"""
     全自动并发探测系统内所有已安装的 WorkBuddy 版本：
@@ -339,14 +392,16 @@ def find_all_templates_dirs():
     def is_real_installation(tdir):
         """真实安装校验：从 templates 向上逐层上溯，任一层像一份客户端安装即可。
 
-        覆盖两种主流布局：
+        覆盖三种主流布局：
           Windows: <安装根>/resources/app.asar.unpacked/resources/templates
           macOS  : /Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/resources/templates
+          Linux   : /opt/WorkBuddy/resources/app.asar.unpacked/resources/templates
 
         判据（任一命中即真）：
           1. macOS 应用包结构：路径中出现 `.app/Contents/`（不可能出现在临时解包目录里）
           2. 该层 resources/install-manifest.json 存在（安装器写入，最可靠）
-          3. 该层 resources/app.asar 存在 且 同层有 WorkBuddy 主程序 exe（便携/绿色版）
+          3. 该层 resources/app.asar 存在 且 同层有 WorkBuddy 主程序（Windows .exe / Linux 无扩展名）
+          4. Linux deb 安装：同层同时存在 `workbuddy` 可执行文件与 `version` 文件
 
         刻意不用「任意 *.exe / *.app」作判据——皮肤工程、构建产物目录里也有 Launcher exe，
         那样会把 asar 的临时解包目录误认成安装，导致补丁打到不被加载的副本上。"""
@@ -363,9 +418,14 @@ def find_all_templates_dirs():
                     if (cur / sub / "install-manifest.json").is_file():
                         return True
                     if (cur / sub / "app.asar").is_file():
-                        for exe in ("WorkBuddy.exe", "WorkBuddy AI.exe", "WorkBuddyAI.exe"):
+                        for exe in ("WorkBuddy.exe", "WorkBuddy AI.exe", "WorkBuddyAI.exe",
+                                    "workbuddy", "workbuddy-ai", "codebuddy"):
                             if (cur / exe).is_file():
                                 return True
+                # 4) Linux deb/rpm 安装：/opt/WorkBuddy/workbuddy + version 文件
+                #    （Linux 版没有 install-manifest.json，主程序也不带 .exe 后缀）
+                if (cur / "workbuddy").is_file() and (cur / "version").is_file():
+                    return True
                 # 3) 已处于 Contents 层
                 if cur.name.lower() == "contents" and cur.parent.suffix.lower() == ".app":
                     return True
@@ -406,6 +466,14 @@ def find_all_templates_dirs():
                     add_candidate(m_app.group(1))
         except Exception:
             pass
+    elif IS_LINUX:
+        # Linux: 从客户端进程的真实可执行文件反推安装根目录
+        # （/opt/WorkBuddy/workbuddy -> /opt/WorkBuddy）
+        try:
+            for _pid, exe in _linux_client_processes():
+                add_candidate(os.path.dirname(exe))
+        except Exception:
+            pass
     else:
         try:
             ps_cmd = 'Get-Process -Name "*WorkBuddy*" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path'
@@ -421,7 +489,7 @@ def find_all_templates_dirs():
             pass
 
     # 3. Windows 系统注册表扫描 (同时检索 WorkBuddy 与 WorkBuddy AI)
-    if sys.platform != 'darwin':
+    if sys.platform == 'win32':
         try:
             import winreg
             registry_roots = [
@@ -468,10 +536,10 @@ def find_all_templates_dirs():
     # 说明：PUBLIC / ProgramData 是 Windows 系统标准公开路径，仅在该环境变量
     # 缺失时用作兜底默认值，与具体机器无关，不构成移植依赖。
     candidate_shortcut_dirs = [
-        Path.home() / "Desktop",
-        Path.home() / "OneDrive" / "Desktop",
+        Path(_real_user_home()) / "Desktop",
+        Path(_real_user_home()) / "OneDrive" / "Desktop",
         Path(os.environ.get("PUBLIC", r"C:\Users\Public")) / "Desktop",
-        Path.home() / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs",
+        Path(_real_user_home()) / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs",
         Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "Microsoft" / "Windows" / "Start Menu" / "Programs",
     ]
     if sys.platform == 'win32':
@@ -502,27 +570,68 @@ def find_all_templates_dirs():
             "/Applications/WorkBuddy AI.app/Contents/Resources/templates",
             "/Applications/WorkBuddyAI.app/Contents/Resources/app.asar.unpacked/resources/templates",
             "/Applications/WorkBuddyAI.app/Contents/Resources/templates",
-            str(Path.home() / "Applications" / "WorkBuddy.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
-            str(Path.home() / "Applications" / "WorkBuddy AI.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
-            str(Path.home() / "Applications" / "WorkBuddyAI.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path(_real_user_home()) / "Applications" / "WorkBuddy.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path(_real_user_home()) / "Applications" / "WorkBuddy AI.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path(_real_user_home()) / "Applications" / "WorkBuddyAI.app" / "Contents" / "Resources" / "app.asar.unpacked" / "resources" / "templates"),
             "/Applications/CodeBuddy.app/Contents/Resources/app.asar.unpacked/resources/templates",
         ]
         for p in mac_checks:
             add_candidate(p)
+    elif IS_LINUX:
+        # Linux: deb/rpm 装到 /opt，AppImage 解压到 squashfs-root，
+        # 也兼容用户级安装（~/.local/share）与 distro 的 /usr/share。
+        linux_checks = [
+            "/opt/WorkBuddy",
+            "/opt/WorkBuddy AI",
+            "/opt/WorkBuddyAI",
+            "/opt/CodeBuddy",
+            "/usr/share/workbuddy",
+            "/usr/lib/workbuddy",
+            str(Path(_real_user_home()) / ".local" / "share" / "WorkBuddy"),
+            str(Path(_real_user_home()) / ".local" / "share" / "WorkBuddy AI"),
+            str(Path(_real_user_home()) / "Applications" / "WorkBuddy"),
+        ]
+        for p in linux_checks:
+            add_candidate(p)
+        for pat in (
+            "/opt/*WorkBuddy*", "/opt/*workbuddy*",
+            "/usr/share/*[Ww]ork[Bb]uddy*", "/usr/lib/*[Ww]ork[Bb]uddy*",
+            str(Path(_real_user_home()) / ".local" / "share" / "*[Ww]ork[Bb]uddy*"),
+            str(Path(_real_user_home()) / "*[Ww]ork[Bb]uddy*" / "squashfs-root"),
+            "/tmp/.mount_[Ww]ork[Bb]uddy*/squashfs-root",
+        ):
+            try:
+                for m in glob.glob(pat):
+                    add_candidate(m)
+            except Exception:
+                pass
+        # 桌面入口 (*.desktop) 的 Exec= 反解安装路径
+        for d in (Path(_real_user_home()) / ".local" / "share" / "applications",
+                  Path("/usr/share/applications")):
+            if not d.is_dir():
+                continue
+            try:
+                for df in d.glob("*[Ww]ork[Bb]uddy*.desktop"):
+                    txt = _read_text(df)
+                    m = re.search(r"^Exec=([^\s]+)", txt, re.MULTILINE)
+                    if m:
+                        add_candidate(m.group(1))
+            except Exception:
+                pass
     else:
         fixed_checks = [
             # 国内版 WorkBuddy
-            str(Path.home() / "AppData" / "Local" / "Programs" / "WorkBuddy" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path(_real_user_home()) / "AppData" / "Local" / "Programs" / "WorkBuddy" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\WorkBuddy\resources\app.asar.unpacked\resources\templates"),
             os.path.expandvars(r"%PROGRAMFILES%\WorkBuddy\resources\app.asar.unpacked\resources\templates"),
             os.path.expandvars(r"%PROGRAMFILES(X86)%\WorkBuddy\resources\app.asar.unpacked\resources\templates"),
             # 国际版 WorkBuddy AI (带空格)
-            str(Path.home() / "AppData" / "Local" / "Programs" / "WorkBuddy AI" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path(_real_user_home()) / "AppData" / "Local" / "Programs" / "WorkBuddy AI" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\WorkBuddy AI\resources\app.asar.unpacked\resources\templates"),
             os.path.expandvars(r"%PROGRAMFILES%\WorkBuddy AI\resources\app.asar.unpacked\resources\templates"),
             os.path.expandvars(r"%PROGRAMFILES(X86)%\WorkBuddy AI\resources\app.asar.unpacked\resources\templates"),
             # 国际版 WorkBuddyAI (无空格)
-            str(Path.home() / "AppData" / "Local" / "Programs" / "WorkBuddyAI" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
+            str(Path(_real_user_home()) / "AppData" / "Local" / "Programs" / "WorkBuddyAI" / "resources" / "app.asar.unpacked" / "resources" / "templates"),
             os.path.expandvars(r"%LOCALAPPDATA%\Programs\WorkBuddyAI\resources\app.asar.unpacked\resources\templates"),
             os.path.expandvars(r"%PROGRAMFILES%\WorkBuddyAI\resources\app.asar.unpacked\resources\templates"),
             os.path.expandvars(r"%PROGRAMFILES(X86)%\WorkBuddyAI\resources\app.asar.unpacked\resources\templates"),
@@ -569,7 +678,8 @@ def prompt_user_for_templates_dir():
     print("  [⚠️ 引导] 未能在默认路径自动定位到 WorkBuddy templates 核心目录")
     print("=" * 65)
     print("👉 请直接将桌面的「WorkBuddy」图标拖入本窗口，然后按回车：")
-    print("👉 或者手动输入 WorkBuddy 的安装根目录 (例如 <安装盘>:\\WorkBuddy)：")
+    print("👉 或者手动输入 WorkBuddy 的安装根目录"
+          "（Windows 例如 <安装盘>:\\WorkBuddy；Linux 例如 /opt/WorkBuddy）：")
     try:
         user_input = input("> ").strip()
         resolved = resolve_to_templates_dir(user_input)
@@ -595,7 +705,7 @@ def get_workbuddy_user_dirs():
         cand = [Path(test_home) / ".workbuddy", Path(test_home) / ".workbuddy-ai"]
         found = [d for d in cand if d.is_dir()]
         return found or [Path(test_home) / ".workbuddy"]
-    home = Path.home()
+    home = Path(_real_user_home())
     appdata = os.environ.get("APPDATA")
     candidates = []
     # 支持客户端原生环境变量 (WORKBUDDY_CONFIG_DIR / CODEBUDDY_CONFIG_DIR / WORKBUDDY_DATA_FOLDER_NAME)
@@ -880,19 +990,20 @@ def safe_relpath(path, base):
 # ==============================================================================
 # 模板备份与还原 (全矩阵四轨覆盖：templates + app welcomemode + plugin cache + marketplace)
 # ==============================================================================
-def get_backup_dir(templates_dir):
-    """获取模板备份目录
+def _backup_outside_install():
+    """是否把备份写在安装目录之外。
 
-    macOS 关键差异：WorkBuddy.app 是 Apple 公证过的签名包，CodeResources 会
-    封章 bundle 内的每一个文件。只要在 bundle 里「新增」任何文件
-    （哪怕只是备份目录），codesign --verify 就会报
-    "a sealed resource is missing or invalid"，应用可能无法启动。
-
-    因此 macOS 一律把备份放到用户级状态目录（~/Library/Application Support/
-    WorkBuddyPatcher/backups/...），绝不写进 .app 里。
-    Windows 保持原样（写在 resources 同级，行为不变）。
+    macOS：.app 是签名封章包，往里新增任何文件都会破坏 codesign。
+    Linux ：/opt/WorkBuddy 属 root:root 755，普通用户即使 sudo 部署成功，
+            备份目录留在安装树里也会在客户端升级/校验时被清掉，且污染系统目录。
+    两者统一放用户级状态目录；Windows 保持原有行为不变。
     """
-    if sys.platform == 'darwin':
+    return sys.platform == 'darwin' or IS_LINUX
+
+
+def get_backup_dir(templates_dir):
+    """获取模板备份目录（macOS 与 Linux 一律外置到用户状态目录）"""
+    if _backup_outside_install():
         import hashlib
         key = hashlib.sha1(str(templates_dir).encode('utf-8')).hexdigest()[:12]
         return os.path.join(STATE_DIR, "backups", key, "templates")
@@ -902,9 +1013,10 @@ def get_backup_dir(templates_dir):
 def get_welcomemode_backup_dir(templates_dir):
     """根代理模板 (welcomemode/*/prompt.tpl) 的备份目录
 
-    macOS: 与 templates 备份同理，必须在 .app 之外，否则破坏签名封章。
+    macOS: 必须在 .app 之外，否则破坏签名封章。
+    Linux: 必须在 /opt 安装树之外，避免无写权限与污染系统目录。
     """
-    if sys.platform == 'darwin':
+    if _backup_outside_install():
         import hashlib
         key = hashlib.sha1(str(templates_dir).encode('utf-8')).hexdigest()[:12]
         return os.path.join(STATE_DIR, "backups", key, "welcomemode")
@@ -915,10 +1027,10 @@ def get_welcomemode_backup_dir(templates_dir):
 def get_reminder_bak_path(templates_dir, fpath):
     """reminder 模板的 .bak 备份路径
 
-    macOS: 不能写在 .app bundle 内（破坏 codesign 封章），
-    改写到用户级状态目录；Windows 保持原样。
+    macOS: 不能写在 .app bundle 内（破坏 codesign 封章）。
+    Linux: 不能写在 root 拥有的 /opt 安装树内。两者都改写到用户级状态目录。
     """
-    if sys.platform == 'darwin':
+    if _backup_outside_install():
         import hashlib
         key = hashlib.sha1(str(templates_dir).encode('utf-8')).hexdigest()[:12]
         return Path(STATE_DIR) / "backups" / key / "reminders" / fpath.name
@@ -2007,6 +2119,8 @@ def resolve_app_version(templates_dir):
 
     Windows: 读 <resources>/install-manifest.json 的 appVersion
     macOS  : 读 .app/Contents/Info.plist 的 CFBundleShortVersionString
+    Linux  : 读 <用户目录>/last-launch.json 的 version（install-manifest.json
+             是 Windows 安装器专属，Linux deb 包里没有）
 
     为什么必须有这个：R4 轨要挑「与客户端自身版本匹配」的插件缓存目录。
     拿不到版本号就会退化成「按 mtime 取最新」，在客户端升级后新旧目录并存时
@@ -2029,6 +2143,24 @@ def resolve_app_version(templates_dir):
                     break
         except Exception:
             pass
+    # --- Linux: <用户目录>/last-launch.json {version, build, timestamp} ---
+    if IS_LINUX:
+        for wb_dir in get_workbuddy_user_dirs():
+            for name in ("last-launch.json", "install-timing-linux-reported.json"):
+                f = Path(wb_dir) / name
+                if not f.is_file():
+                    continue
+                try:
+                    data = json.loads(_read_text(f))
+                    v = str(data.get("version", "") or "").strip()
+                    if not v:
+                        m = re.search(r":(\d+\.\d+\.\d+):", str(data.get("installId", "")))
+                        v = m.group(1) if m else ""
+                    if v:
+                        return v
+                except Exception:
+                    pass
+
     # --- Windows / 通用: install-manifest.json ---
     for cand in (td.parents[2] / "install-manifest.json" if len(td.parents) > 2 else None,
                  td.parent / "install-manifest.json"):
@@ -2039,6 +2171,21 @@ def resolve_app_version(templates_dir):
                     return v
         except Exception:
             continue
+
+    # 通用兜底：从插件缓存目录名 "<版本>-wb.<build>..." 反推。
+    # 仅在所有平台专属来源都拿不到时启用，避免退化成 mtime 猜测。
+    try:
+        versions = []
+        for wb_dir in get_workbuddy_user_dirs():
+            base = Path(wb_dir) / "plugins" / "cache" / "workbuddy-builtin"
+            for d in base.glob("welcomemode-*/[0-9]*"):
+                m = re.match(r"^(\d+\.\d+\.\d+)-", d.name)
+                if m:
+                    versions.append(m.group(1))
+        if versions:
+            return max(set(versions), key=versions.count)
+    except Exception:
+        pass
     return ""
 
 
@@ -2059,6 +2206,12 @@ def collect_fingerprint(templates_dir):
         app = get_macos_app_bundle(templates_dir)
         if app:
             fp["installDir"] = str(app)
+    if IS_LINUX:
+        # Linux 没有 install-manifest.json，从 templates 向上找含 workbuddy 主程序的安装根
+        for parent in td.resolve().parents:
+            if (parent / "workbuddy").is_file() and (parent / "resources").is_dir():
+                fp["installDir"] = str(parent)
+                break
     for wb_dir in get_workbuddy_user_dirs():
         for sub in ("cache", "marketplaces"):
             base = wb_dir / "plugins" / sub / "workbuddy-builtin"
@@ -2078,7 +2231,10 @@ def detect_running_clients():
     本工具自身的路径就叫 WorkBuddy-Prompt-Patcher，pgrep 会把自己的命令行
     也匹上，导致「误判客户端在运行」，进而让 --require-closed 错误地中止。
 
-    因此改为：只认「可执行文件确实位于某个 WorkBuddy.app 包内」的进程，
+    因此改为按真实可执行文件判定：
+      - macOS : 可执行文件必须位于某个 WorkBuddy.app/Contents/ 内
+      - Linux : /proc/<pid>/exe 必须指向 workbuddy 主程序
+      - Windows: PowerShell 进程名
     并排除本脚本自身及其父 shell。
     """
     names = []
@@ -2090,7 +2246,7 @@ def detect_running_clients():
             out = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
                                           text=True, errors="replace", timeout=6)
             names = sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
-        else:
+        elif sys.platform == 'darwin':
             import subprocess
             # 精确匹配：进程的可执行文件路径落在 *.app/Contents/ 内
             out = subprocess.check_output(
@@ -2106,6 +2262,8 @@ def detect_running_clients():
                     continue
                 names.append(ln)
             names = sorted(set(names))
+        elif IS_LINUX:
+            names = sorted({f"{pid} {exe}" for pid, exe in _linux_client_processes()})
     except Exception:
         pass
     return names
@@ -2221,8 +2379,9 @@ def verify_matrix(templates_dir):
     # R1 主模板 (不含 quick) —— 必须命中补丁指纹，不能仅判标签存在
     mains = [p for p in main_prompt_templates(td) if "quick" not in p.name]
     rail("R1", "templates 主模板", mains, cp_checker,
-         hint="若整轨失败：多为尚未部署，或安装目录无写权限（装在 Program Files 时普通用户会被 UAC 拒绝），"
-              "请右键以管理员身份运行，或关闭杀软/客户端后重跑")
+         hint="若整轨失败：多为尚未部署，或安装目录无写权限"
+              "（Windows 装在 Program Files 需管理员；Linux /opt/WorkBuddy 需 sudo），"
+              "请用管理员/sudo 权限运行，或关闭杀软/客户端后重跑")
 
     # R2 快速模式模板 (旧版必然漏)
     rail("R2", "quick 模式模板", [td / "workbuddy-quick-prompt.tpl"], cp_checker)
@@ -2234,7 +2393,7 @@ def verify_matrix(templates_dir):
          hint="客户端 < 5.6 无此目录（老版本无根代理插件化）",
          optional=True)
     attach_diag("R3", "未命中补丁指纹（未部署 / 无写权限 / 5.11.x 新增模式缺标签）"
-                      "→ 关闭客户端并以管理员权限重跑 --auto")
+                      "→ 关闭客户端并以管理员/sudo 权限重跑 --auto")
 
     # R4 用户缓存：客户端只加载「与自身 appVersion 匹配」的版本目录
     # 关键：不能用 mtime 挑最新——新旧版本目录并存时 mtime 会误导，
@@ -2276,15 +2435,26 @@ def verify_matrix(templates_dir):
          lambda f: any(m in _read_text(f) for m in REFUSAL_MARKERS))
 
     # R6 账号级神格：覆盖个人版 user-<uid>-personal 与企业/团队版 user-<uid>-<enterpriseId>
-    # （根目录 ~/.workbuddy/SOUL.md 不参与会话加载，计入会造成假阳性，故排除）
+    # （Windows/macOS 根目录 ~/.workbuddy/SOUL.md 不参与会话加载，计入会造成假阳性，故排除）
     souls = []
     for wb_dir in user_dirs_for_installation(templates_dir):
         for acc_dir in iter_account_dirs(wb_dir):
             sf = acc_dir / "SOUL.md"
             if sf.exists():
                 souls.append(sf)
+    # Linux 桌面版没有 user-* 账号目录，会话直接加载 ~/.workbuddy/SOUL.md。
+    # 此时若继续排除根级文件，R6 会恒定 0/0 —— 补丁写了却永远显示"未生效"。
+    r6_hint = "无账号目录 (user-*)：客户端从未登录。先启动并登录一次，再重跑本脚本"
+    if not souls and IS_LINUX:
+        for wb_dir in user_dirs_for_installation(templates_dir):
+            sf = Path(wb_dir) / "SOUL.md"
+            if sf.exists():
+                souls.append(sf)
+        if souls:
+            r6_hint = ("Linux 桌面版直接加载根级 SOUL.md（无 user-* 账号目录）："
+                       "该文件尚未注入神格契约，请重跑 --auto 部署")
     rail("R6", "SOUL.md 账号级", souls, lambda f: "God Mode" in _read_text(f),
-         hint="无账号目录 (user-*)：客户端从未登录。先启动并登录一次，再重跑本脚本")
+         hint=r6_hint)
 
     return V35_RAILS
 

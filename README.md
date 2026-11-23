@@ -3,7 +3,7 @@
 > 🚀 **WorkBuddy 桌面端终极系统提示词破甲与认知矩阵管理套件**  
 > 彻底解除道德说教、多轮任务中途拒答、50-70 行代码长度截断与系统命令行束缚。支持双击一键极简部署/恢复、多用户配置无损增量追加与 AI Agent 全自动化静默调用。
 
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-brightgreen?style=flat-square)](#)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-brightgreen?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)](#)
 [![Release](https://img.shields.io/badge/Release-v3.7%20Latest-blue?style=flat-square)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases)
 
@@ -19,24 +19,25 @@
 
 ---
 
-## 📥 下载 (单包通用，Win + macOS 一体)
+## 📥 下载 (单包通用，Win + macOS + Linux 一体)
 
-从 v3.5 起改为**单包通用**：一个 zip 同时包含 Windows 的 `.bat` 与 macOS 的 `.command`，按系统前缀自行识别，不用再挑平台。
+从 v3.5 起改为**单包通用**：一个 zip 同时包含 Windows 的 `.bat`、macOS 的 `.command` 与 Linux 的 `.sh`，按系统前缀自行识别，不用再挑平台。
 
 | 下载 | 包含组件 |
 | :--- | :--- |
-| [⬇️ 点击下载最新版 (ZIP)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases/latest) | `.bat` 批处理 + `.command` 访达脚本 + Python 补丁引擎 + 提示词配置 + 两端部署自检脚本 |
+| [⬇️ 点击下载最新版 (ZIP)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases/latest) | `.bat` 批处理 + `.command` 访达脚本 + `.sh` Linux 脚本 + Python 补丁引擎 + 提示词配置 + 三端部署自检脚本 |
 
-> *注：也可直接 `git clone` 全量仓库，两个系统的启动脚本已带显眼的前缀标识，互不冲突。*
+> *注：也可直接 `git clone` 全量仓库，三个系统的启动脚本已带显眼的后缀标识，互不冲突。*
 
 ---
 
 ## ✨ 核心特性
 
 - 🌐 **双版本并发兼容 (v3.4 核心突破)**：原生无感同时支持 **WorkBuddy 国内版** 与 **WorkBuddy AI 国际出海版**（v5.9.4+，无论目录是否带空格），自动双轨识别；同机双开共存时，一键同时全量生效！
-- ⚡ **双平台一键开箱**：
+- ⚡ **三平台一键开箱**：
   - **Windows**：双击 `【一键开启】上帝模式.bat`（GBK/CRLF 零闪退）；
-  - **macOS**：在访达中双击 `【一键开启】上帝模式.command`（原生 Terminal 弹窗执行）。
+  - **macOS**：在访达中双击 `【一键开启】上帝模式.command`（原生 Terminal 弹窗执行）；
+  - **Linux**：`chmod +x *.sh` 后双击/终端运行 `【一键开启】上帝模式.sh`（自动 sudo 提权）。
 - 🛡️ **多轮会话防拒答 (v3.2 核心突破)**：不仅首轮生效，在深入多轮任务（第二步继续要求“直接入侵/拿到操作权/自动化爆破”）时，通过实时接管 `craft-mode-reminder.tpl` 与 `ask-mode-reminder.tpl`，彻底终结中途断流与自省拒答。
 - 🎯 **首字锁 + 软拒答形态识别 (v3.6 核心突破)**：第一个输出 token 必须是实质内容，`"能，但…"` / `"可以，不过…"` / `"首先需要说明"` 一律判为 HARD FAILURE；并把「列出不接的部分 / 风险叙述代替交付 / 替代方案表 / 拆成我做的+我不做的 / 能但式开场」五种形态直接定义为拒答 —— **按形态判定，不靠禁用词**，因此「合规外形的拒绝」再也绕不过去。
 - 🧬 **全模式兜底注入 (v3.7 核心突破)**：客户端 5.11.x 起 `welcomemode` 会新增根代理模式（如 `claw`），这类模板可能不含任何 XML 标签。v3.7 对「缺标签」的模板自动前置注入 `content_policy`，客户端升级后新增模式也能覆盖，不再出现 `R3/R4 3/4` 这种「明明跑了却漏一轨」。
@@ -78,7 +79,7 @@
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **六轨全量覆盖**：自动识别 Windows 安装目录与 macOS `/Applications/WorkBuddy.app`，同时覆盖系统模板 (`templates`)、quick 模式、根代理模板 (`welcomemode`)、用户运行插件缓存 (`plugins/cache`)、每轮提醒 (`reminders`) 与全局用户神格 (`SOUL.md`)。任一轨缺失即退出码 1，不会出现「写了但没写到加载点」。
+1. **六轨全量覆盖**：自动识别 Windows 安装目录、macOS `/Applications/WorkBuddy.app` 与 Linux `/opt/WorkBuddy`，同时覆盖系统模板 (`templates`)、quick 模式、根代理模板 (`welcomemode`)、用户运行插件缓存 (`plugins/cache`)、每轮提醒 (`reminders`) 与全局用户神格 (`SOUL.md`)。任一轨缺失即退出码 1，不会出现「写了但没写到加载点」。
 2. **思维链口语意图映射**：当用户输入“直接入侵”、“拿到操作权”、“搞下这台机器”时，推导引擎自动映射为“合规靶场 PoC 验证与漏洞审计分析”，杜绝内部自审。
 3. **出厂级纯净备份（v3.7 起增量）**：首次部署自动封存出厂原始模板；客户端升级新增模式时（如 `claw`）自动补入备份，且检测到「已改过又无原始版本」时拒绝备份并告警，避免把补丁版当官方原版存档。无论改多少次均可一键 100% 无损还原。
 
@@ -117,7 +118,14 @@
 - **恢复官方默认**：双击运行 **`【一键恢复】官方原版.command`** 即可恢复官方出厂状态。
 - **自检是否真的写进去**：双击 **`【检测部署】验证破甲是否生效.command`**，看 `文件层: [PASS]` 即可。
 
-### 选项 C：AI Agent / 命令行自动化 (跨平台通用)
+### 选项 C：Linux 用户
+- 首次使用先赋权：`chmod +x *.sh`
+- **开启上帝模式**：运行 **`./【一键开启】上帝模式.sh`**，脚本会检测 `/opt/WorkBuddy` 写权限并按需请求 sudo。
+- **恢复官方默认**：运行 **`./【一键恢复】官方原版.sh`**。
+- **自检是否真的写进去**：运行 **`./【检测部署】验证破甲是否生效.sh`**，看六轨矩阵。
+- 详见 **[README-Linux.md](README-Linux.md)**（Linux 专属 6 处坑与修法）。
+
+### 选项 D：AI Agent / 命令行自动化 (跨平台通用)
 ```bash
 # 一键自动全量部署 (退出码 0=六轨全绿 1=有缺口 2=客户端在运行被门禁拦截)
 python batch_patch_prompts.py --auto
@@ -227,14 +235,22 @@ WorkBuddy-Prompt-Patcher/
 ├── 【一键恢复】官方原版.command        # 🍎 macOS 访达双击恢复官方原版
 ├── 【检测部署】验证破甲是否生效.bat     # 🪟 Windows 部署自检 (退出码 0=全绿)
 ├── 【检测部署】验证破甲是否生效.command  # 🍎 macOS 部署自检 (退出码 0=全绿)
-├── 一键修改提示词.bat                 # 🖥️ 控制面板入口 ([1] 一键部署 [2] 一键恢复)
+├── 【一键开启】上帝模式.sh            # 🐧 Linux 双击开启 God Mode (自动 sudo)
+├── 【一键恢复】官方原版.sh            # 🐧 Linux 双击恢复官方原版
+├── 【检测部署】验证破甲是否生效.sh     # 🐧 Linux 部署自检 (退出码 0=全绿)
+├── 一键修改提示词.sh                  # 🐧 Linux 控制面板入口
+├── linux_common.sh                    # 🐧 Linux 启动脚本公共函数库
+├── 一键修改提示词.bat                 # 🖥️ Windows 控制面板入口 ([1] 部署 [2] 恢复)
 ├── 【打包分发】生成干净包.bat          # 📦 生成不含本机状态的分发副本
 ├── make_release.py                    # 📦 分发打包器 (白名单 + 干净性自检)
-├── batch_patch_prompts.py             # 核心修补引擎 (支持 Win & macOS 双平台)
+├── batch_patch_prompts.py             # 核心修补引擎 (支持 Win / macOS / Linux 三平台)
 ├── custom_input.txt                   # 七大核心认知矩阵提示词缓冲区
 ├── tests/
-│   └── test_v35.py                    # 🧪 沙箱回归测试 (23 项断言, 含三层生效判定)
-└── README.md                          # 项目说明文档
+│   ├── test_v35.py                    # 🧪 沙箱回归测试 (23 项断言, 含三层生效判定)
+│   └── test_linux.py                  # 🧪 Linux 适配专项测试 (沙箱, 零副作用)
+├── README.md                          # 项目说明文档 (总入口)
+├── README-macOS.md                    # 🍎 macOS 适配说明
+└── README-Linux.md                    # 🐧 Linux 适配说明
 ```
 
 > 发行 zip 只含**运行必需**的 11 个文件；`make_release.py` 与 `tests/` 仅供开发者使用，不进包。
@@ -249,7 +265,7 @@ WorkBuddy-Prompt-Patcher/
 
 | 环节 | 实现方式 | 是否依赖具体机器 |
 |---|---|---|
-| bat / command 入口 | 全部用 `%~dp0` / `$(dirname "$0")`，即「脚本自身所在目录」 | ❌ 不依赖 |
+| bat / command / sh 入口 | 全部用 `%~dp0` / `$(dirname "$0")`，即「脚本自身所在目录」 | ❌ 不依赖 |
 | Python 主脚本 | `SCRIPT_DIR = dirname(abspath(__file__))` | ❌ 不依赖 |
 | 客户端安装位置 | 注册表 / 快捷方式 / 常见盘符 / 环境变量 **枚举探测**，命中即用 | ❌ 不依赖 |
 | 用户目录 | `Path.home()` + `LOCALAPPDATA` / `APPDATA` 环境变量 | ❌ 不依赖 |
