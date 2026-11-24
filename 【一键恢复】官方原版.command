@@ -29,6 +29,12 @@ fi
 echo "[INFO] 正在从本地安全备份一键还原官方原始出厂状态..."
 echo ""
 
+if pgrep -f "/WorkBuddy[^/]*\.app/Contents/" >/dev/null 2>&1; then
+    echo "[INFO] 检测到 WorkBuddy 正在运行，正在自动退出客户端以释放文件锁..."
+    pkill -f "/WorkBuddy[^/]*\.app/Contents/" >/dev/null 2>&1 || true
+    sleep 2
+fi
+
 "$PY_CMD" "./batch_patch_prompts.py" --restore
 if [ $? -ne 0 ]; then
     echo ""

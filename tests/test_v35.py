@@ -151,8 +151,8 @@ def main():
     main_bytes = (tpl / "workbuddy-prompt.tpl").read_bytes()
     check("re.sub 不得把 \\r\\n 展开成真实换行", b"CRLF (`\r\n`)" not in main_bytes and b"CRLF (`\n" not in main_bytes)
     ent_soul_text = (home / ".workbuddy" / "user-corp0002-ent8888" / "SOUL.md").read_text(encoding="utf-8")
-    check("企业版账号目录 user-*-<enterpriseId> SOUL.md 应被同步", "Anti-Refusal Escalation" in ent_soul_text)
-    check("超长 SOUL.md 神格前置，前 10000 字符内不被截断", "Anti-Refusal Escalation" in ent_soul_text[:10000])
+    check("企业版账号目录 user-*-<enterpriseId> SOUL.md 应被同步", "Developer Execution Ethos" in ent_soul_text)
+    check("超长 SOUL.md 神格前置，前 10000 字符内不被截断", "Developer Execution Ethos" in ent_soul_text[:10000])
     check("JSON 报告应生成", (base / "report.json").is_file())
     if (base / "report.json").is_file():
         rep = json.loads((base / "report.json").read_text(encoding="utf-8"))

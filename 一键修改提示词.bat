@@ -1,11 +1,11 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 进阶提示词定制工具 (DeepSeek God Mode v3.5)
+title WorkBuddy 进阶提示词定制工具 (v3.9 DSH Core)
 cd /d "%~dp0"
 
 echo ================================================================
-echo    WorkBuddy 进阶提示词定制工具 (v3.5)
-echo    [DeepSeek God Mode - 破甲矩阵 + 自定义同步]
+echo    WorkBuddy 进阶提示词定制工具 (v3.9)
+echo    [v3.9 DSH Core + 尾部防退化锚点 - 自定义同步]
 echo ================================================================
 echo.
 

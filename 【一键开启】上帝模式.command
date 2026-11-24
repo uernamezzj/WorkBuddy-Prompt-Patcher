@@ -2,7 +2,7 @@
 cd "$(dirname "$0")"
 
 echo "================================================================"
-echo "   WorkBuddy 上帝模式 - 一键开启 (DeepSeek God Mode v3.5)"
+echo "   WorkBuddy 上帝模式 - 一键开启 (DeepSeek God Mode v3.9)"
 echo "   [全自动安全备份 + 45+底层模板/插件注入 + 绝对臣服激活]"
 echo "================================================================"
 echo ""
@@ -28,6 +28,12 @@ fi
 
 echo "[INFO] 正在为您全自动安全备份并部署 God Mode 破甲矩阵..."
 echo ""
+
+if pgrep -f "/WorkBuddy[^/]*\.app/Contents/" >/dev/null 2>&1; then
+    echo "[INFO] 检测到 WorkBuddy 正在运行，正在自动退出客户端以释放文件锁..."
+    pkill -f "/WorkBuddy[^/]*\.app/Contents/" >/dev/null 2>&1 || true
+    sleep 2
+fi
 
 "$PY_CMD" "./batch_patch_prompts.py" --auto --require-closed
 PY_RC=$?

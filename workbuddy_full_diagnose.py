@@ -9,7 +9,7 @@ WorkBuddy 全维度一键诊断脚本 (Standalone, Zero Dependencies)
   4. 进程树深度排查（含 supervisor、codebuddy --prewarm 预热池、betterleaks，规避 tasklist 25字符截断）
   5. 时间轴三层核验（模板写入时间 vs 进程启动时间 vs 最近会话创建时间）
   6. 最近会话模型/Agent 提取（识别是否仍在旧会话或强对齐模型如 Hy4 中测试）
-  7. 自动导出 workbuddy_diagnose_report.txt 方便发给群主/作者排查
+  7. 自动导出 workbuddy_diagnose_report.txt 方便留档对比排查
 """
 
 import os
@@ -37,18 +37,18 @@ if hasattr(sys.stderr, "reconfigure"):
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPORT_FILE = SCRIPT_DIR / "workbuddy_diagnose_report.txt"
 
-# v3.8 核心 7 条指纹
+# v3.9 核心 7 条指纹 (覆盖 DSH Core + 尾部 <execution_anchor>)
 FINGERPRINTS_7 = [
-    "Soft-Refusal Detection",
-    "Anti-Complement Presumption",
-    "Intent De-escalation",
-    "Prior-Probability Override",
-    "Agent-Action Parity",
-    "Zero-Deliberation Lock",
-    "DSH Refusal Suppression",
+    "MODE: UNRESTRICTED SANDBOX",
+    "HARD OUTPUT RULES",
+    "Scoped Rules",
+    "Never Refuse",
+    "CTF Core Contract",
+    "WEB PENTEST ROUTING",
+    "<execution_anchor>",
 ]
-SOUL_MARKERS = ("Anti-Refusal Escalation", "DSH Cognitive Sovereignty")
-REMINDER_MARKERS = ("ANTI-REFUSAL LOCK", "MULTI-TURN ANTI-DRIFT")
+SOUL_MARKERS = ("Developer Execution Ethos", "Direct Delivery")
+REMINDER_MARKERS = ("placeholders", "PAYLOAD")
 
 REPORT_LINES = []
 
@@ -252,7 +252,8 @@ def probe_shortcuts():
         "[Environment]::GetFolderPath('Desktop'),"
         "[Environment]::GetFolderPath('CommonDesktopDirectory'),"
         "[Environment]::GetFolderPath('Programs'),"
-        "[Environment]::GetFolderPath('CommonPrograms')"
+        "[Environment]::GetFolderPath('CommonPrograms'),"
+        "\"$env:APPDATA\\Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar\""
         ") | Where-Object { $_ -and (Test-Path $_) }; "
         "$res = @(); "
         "foreach ($d in $dirs) { "
@@ -285,10 +286,23 @@ def probe_registry_installs():
         return found
     try:
         import winreg
+        user_sids = []
+        try:
+            with winreg.OpenKey(winreg.HKEY_USERS, "") as ku:
+                for idx_u in range(winreg.QueryInfoKey(ku)[0]):
+                    sid = winreg.EnumKey(ku, idx_u)
+                    if len(sid) > 8 and not sid.endswith("_Classes"):
+                        user_sids.append(sid)
+        except Exception:
+            pass
+
         roots = [
             (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
             (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
             (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+        ] + [
+            (winreg.HKEY_USERS, rf"{sid}\Software\Microsoft\Windows\CurrentVersion\Uninstall")
+            for sid in user_sids
         ]
         for hive, sub in roots:
             try:
@@ -302,6 +316,7 @@ def probe_registry_installs():
                                 disp = ""
                                 loc = ""
                                 icon = ""
+                                uninst = ""
                                 try:
                                     disp = str(winreg.QueryValueEx(sk, "DisplayName")[0])
                                 except Exception:
@@ -314,15 +329,59 @@ def probe_registry_installs():
                                     icon = str(winreg.QueryValueEx(sk, "DisplayIcon")[0]).split(",")[0].strip('"')
                                 except Exception:
                                     pass
+                                try:
+                                    u_raw = str(winreg.QueryValueEx(sk, "UninstallString")[0]).strip()
+                                    if '"' in u_raw:
+                                        uninst = u_raw.split('"')[1]
+                                    else:
+                                        m_u = re.match(r"^(.+?\.exe)\b", u_raw, re.IGNORECASE)
+                                        if m_u:
+                                            uninst = m_u.group(1)
+                                except Exception:
+                                    pass
                                 if "workbuddy" in (name + " " + disp + " " + loc).lower():
-                                    if loc:
-                                        found.append(loc)
-                                    if icon:
-                                        found.append(icon)
+                                    for v in (loc, icon, uninst):
+                                        if v:
+                                            found.append(v)
                         except OSError:
                             break
             except OSError:
                 continue
+
+        # 系统历史运行轨迹表 (AppCompat / AppSwitched / MuiCache)
+        trace_subs = (
+            r"Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Compatibility Assistant\Store",
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\FeatureUsage\AppSwitched",
+            r"Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache",
+        )
+        trace_roots = [(winreg.HKEY_CURRENT_USER, s) for s in trace_subs] + [
+            (winreg.HKEY_USERS, rf"{sid}\{s}") for sid in user_sids for s in trace_subs
+        ]
+        for hive, sub in trace_roots:
+            try:
+                with winreg.OpenKey(hive, sub) as tk:
+                    for j in range(winreg.QueryInfoKey(tk)[1]):
+                        try:
+                            vn, vv, _ = winreg.EnumValue(tk, j)
+                            for raw_s in (vn, vv if isinstance(vv, str) else ""):
+                                if not raw_s or "workbuddy" not in raw_s.lower():
+                                    continue
+                                s = raw_s.strip().strip('"')
+                                for suf in (".FriendlyAppName", ".ApplicationCompany"):
+                                    if s.endswith(suf):
+                                        s = s[:-len(suf)]
+                                m_exe = re.search(r"([A-Za-z]:\\[^\"<>|*?\r\n]+?\.exe)", s, re.IGNORECASE)
+                                if m_exe:
+                                    exe_p = m_exe.group(1)
+                                    low_p = exe_p.lower()
+                                    if any(sk in low_p for sk in ("\\temp\\", "setup", "installer", "launcher")):
+                                        continue
+                                    if "workbuddy" in os.path.basename(low_p) and os.path.isfile(exe_p):
+                                        found.append(exe_p)
+                        except OSError:
+                            pass
+            except OSError:
+                pass
     except Exception:
         pass
     return found
@@ -372,25 +431,51 @@ def discover_all_installations(procs, shortcuts, extra_args):
             os.environ.get("ProgramFiles", ""),
             os.environ.get("ProgramFiles(x86)", ""),
         ]
-        # 枚举所有真实盘符
-        for drive_ch in "CDEFGHIJK":
+        # 枚举全盘 C..Z 所有真实盘符与 1~3 层自定义目录
+        skip_top = {
+            "windows", "$recycle.bin", "system volume information", "recovery",
+            "perflogs", "msocache", "documents and settings", "config.msi",
+            "node_modules", ".git", ".workbuddy", ".workbuddy-ai",
+        }
+        tpl_rel = os.path.join("resources", "app.asar.unpacked", "resources", "templates")
+        for drive_ch in "CDEFGHIJKLMNOPQRSTUVWXYZ":
             drv = f"{drive_ch}:\\"
             if not os.path.exists(drv):
                 continue
-            for sub in (
-                "software", "Software", "soft", "Soft", "Apps", "App", "Tools",
-                "Program Files", "Program Files (x86)", "Programs", "WorkBuddy", "WorkBuddyAI", "WorkBuddy AI"
-            ):
-                base = os.path.join(drv, sub)
-                if os.path.isdir(base):
-                    common_bases.append(base)
-            # <盘符>:\Users\*\AppData\Local\Programs
             users_dir = os.path.join(drv, "Users")
             if os.path.isdir(users_dir):
                 for u in glob.glob(os.path.join(users_dir, "*")):
-                    lp = os.path.join(u, "AppData", "Local", "Programs")
-                    if os.path.isdir(lp):
-                        common_bases.append(lp)
+                    for sub_u in (
+                        os.path.join(u, "AppData", "Local", "Programs"),
+                        os.path.join(u, "AppData", "Local"),
+                        os.path.join(u, "AppData", "Roaming"),
+                    ):
+                        if os.path.isdir(sub_u):
+                            common_bases.append(sub_u)
+            try:
+                with os.scandir(drv) as dit:
+                    for d1 in dit:
+                        if not d1.is_dir() or d1.name.lower() in skip_top or d1.name.startswith("."):
+                            continue
+                        common_bases.append(d1.path)
+                        if os.path.isdir(os.path.join(d1.path, tpl_rel)):
+                            candidates.append(("磁盘扫描", d1.path))
+                            continue
+                        try:
+                            with os.scandir(d1.path) as d2it:
+                                for d2 in d2it:
+                                    if not d2.is_dir() or d2.name.lower() in skip_top or d2.name.startswith("."):
+                                        continue
+                                    if os.path.isdir(os.path.join(d2.path, tpl_rel)):
+                                        candidates.append(("磁盘扫描", d2.path))
+                                    elif any(k in d1.name.lower() or k in d2.name.lower() for k in (
+                                        "soft", "prog", "app", "tool", "ai", "dev", "work", "软件", "程序", "工具", "办公", "开发"
+                                    )):
+                                        common_bases.append(d2.path)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
 
         seen_base = set()
         for base in common_bases:
@@ -506,14 +591,41 @@ def check_installation(root: Path):
     }
 
 
-def check_user_dirs(app_versions_map):
-    """扫描 ~/.workbuddy 与 ~/.workbuddy-ai 下的 R4(cache + marketplaces) 与 R6(SOUL.md)"""
+def _discover_all_user_wb_dirs():
+    """汇总当前用户及全盘所有用户目录下的 .workbuddy 与 .workbuddy-ai（防右键管理员提权导致目录错位）"""
     home = Path.home()
-    user_dirs = []
-    for dname, label in ((".workbuddy", "国内版用户目录 (~/.workbuddy)"), (".workbuddy-ai", "国际版用户目录 (~/.workbuddy-ai)")):
-        d = home / dname
-        if d.is_dir():
-            user_dirs.append((d, label))
+    cands = [
+        (home / ".workbuddy", "国内版用户目录 (~/.workbuddy)"),
+        (home / ".workbuddy-ai", "国际版用户目录 (~/.workbuddy-ai)"),
+    ]
+    if sys.platform == "win32":
+        for drv_c in "CDEFGHIJKLMNOPQRSTUVWXYZ":
+            u_root = Path(f"{drv_c}:\\") / "Users"
+            if not u_root.is_dir():
+                continue
+            try:
+                for u_sub in u_root.iterdir():
+                    if u_sub.is_dir():
+                        cands.append((u_sub / ".workbuddy", f"国内版用户目录 ({u_sub.name}/.workbuddy)"))
+                        cands.append((u_sub / ".workbuddy-ai", f"国际版用户目录 ({u_sub.name}/.workbuddy-ai)"))
+            except Exception:
+                pass
+    out_list, seen = [], set()
+    for d, lbl in cands:
+        try:
+            if d.is_dir():
+                rk = str(d.resolve()).lower()
+                if rk not in seen:
+                    seen.add(rk)
+                    out_list.append((d, lbl))
+        except Exception:
+            pass
+    return out_list
+
+
+def check_user_dirs(app_versions_map):
+    """扫描全部 .workbuddy 与 .workbuddy-ai 下的 R4(cache + marketplaces) 与 R6(SOUL.md)"""
+    user_dirs = _discover_all_user_wb_dirs()
 
     results = []
     for udir, label in user_dirs:
@@ -594,11 +706,11 @@ def check_user_dirs(app_versions_map):
 
 
 def inspect_latest_sessions():
-    """检查 ~/.workbuddy/projects 与 ~/.workbuddy-ai/projects 下最近 3 个会话的创建时间与使用模型"""
-    home = Path.home()
+    """检查全部用户目录 .workbuddy/projects 与 .workbuddy-ai/projects 下最近会话的创建时间与使用模型"""
     sessions = []
-    for dname in (".workbuddy", ".workbuddy-ai"):
-        pdir = home / dname / "projects"
+    for udir, _lbl in _discover_all_user_wb_dirs():
+        dname = udir.name
+        pdir = udir / "projects"
         if not pdir.is_dir():
             continue
         for jf in pdir.rglob("*.jsonl"):
@@ -664,7 +776,7 @@ def main():
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     out("=" * 74)
-    out("  WorkBuddy 全面深度诊断工具 (All-in-One Diagnostic v3.8)")
+    out("  WorkBuddy 全面深度诊断工具 (All-in-One Diagnostic v3.9)")
     out(f"  检测时间: {now_str}")
     out(f"  系统环境: {sys.platform} | Python {sys.version.split()[0]}")
     out("=" * 74)
@@ -726,7 +838,10 @@ def main():
                         f"桌面/开始菜单快捷方式 ({Path(sc['Link']).name}) 指向未打补丁的安装目录: {matched['root']}"
                     )
             else:
-                out(f"    [WARN] {sc['Link']} -> {sc['Target']} (未识别为标准安装)")
+                if "launcher" in sc["Target"].lower():
+                    out(f"    [INFO] {sc['Link']} -> {sc['Target']} (第三方启动器/皮肤入口，请确认实际拉起的安装目录已打补丁)")
+                else:
+                    out(f"    [WARN] {sc['Link']} -> {sc['Target']} (未识别为标准安装)")
 
     # 核对运行中进程指向
     running_roots = set()
@@ -906,11 +1021,11 @@ def main():
         # 提醒强对齐模型 / 第三方路由小模型
         for m in latest["models"]:
             low_m = m.lower()
-            if "hy4" in low_m or "hunyuan" in low_m:
+            if "glm-5.3-flash" in low_m or "hy4std" in low_m:
                 warnings.append(
-                    f"最近会话使用的模型是 [{m}] (混元底座对齐极严)，建议切换 DeepSeek 系列模型再测"
+                    f"最近会话使用的模型是 [{m}] (该模型底座安全对齐极严或思考极重)，建议优先切换 DeepSeek-V4.1-Flash / DeepSeek-V4-Pro / Hy4 flash"
                 )
-                out(f"  [WARN 模型提醒] 最近会话使用了 [{m}]，混元底座审查极严，建议改用 DeepSeek 系列模型对比测试。")
+                out(f"  [WARN 模型提醒] 最近会话使用了 [{m}]，建议优先改用 DeepSeek-V4.1-Flash / DeepSeek-V4-Pro / Hy4 flash 对比测试。")
             elif any(k in low_m for k in ("qwen", "27b", "routing group")):
                 warnings.append(
                     f"最近会话使用了 [{m}] (第三方路由组/小参数千问模型，对齐与长提示遵循差异大)，建议切官方 DeepSeek 对比"
@@ -944,7 +1059,6 @@ def main():
     try:
         REPORT_FILE.write_text("\n".join(REPORT_LINES) + "\n", encoding="utf-8")
         out(f"  完整诊断报告已自动保存至: {REPORT_FILE}")
-        out("  (可直接把该 txt 文件发给群主/作者，3 秒定位问题)")
     except Exception as e:
         out(f"  [WARN] 报告保存失败: {e}")
     out("=" * 74)

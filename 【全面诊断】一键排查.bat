@@ -1,10 +1,10 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 全面深度诊断 v3.8 (排查多份安装 / 快捷方式 / 六轨 / 进程 / 会话)
+title WorkBuddy 全面深度诊断 v3.9 (排查多份安装 / 快捷方式 / 六轨 / 进程 / 会话)
 cd /d "%~dp0"
 
 echo ==========================================================================
-echo   WorkBuddy 全面深度诊断工具 v3.8
+echo   WorkBuddy 全面深度诊断工具 v3.9
 echo   一次性排查: 多份安装冲突 / 快捷方式错位 / 六轨+marketplaces /
 echo               进程与prewarm残留 / 新旧会话时间戳 / 使用的模型
 echo   提示: 若装在极偏僻目录，可直接把 WorkBuddy 文件夹拖到本 bat 图标上运行
@@ -60,7 +60,6 @@ set "DIAG_RC=%ERRORLEVEL%"
 
 echo.
 echo [提示] 完整诊断文本已保存在同目录: workbuddy_diagnose_report.txt
-echo        可直接把该 txt 文件发给作者/群主排查，无需拍屏。
 echo.
 pause
 exit /b %DIAG_RC%

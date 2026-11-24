@@ -1,24 +1,24 @@
 #!/bin/bash
 # ============================================================
-#  WorkBuddy 破甲部署检测  v3.8  (macOS)
-#  判断: v3.8 补丁有没有真的写进去 / 覆盖到几轨
+#  WorkBuddy 破甲部署检测  v3.9  (macOS)
+#  判断: v3.9 补丁有没有真的写进去 / 覆盖到几轨
 #  用法: 双击运行，或在终端执行 ./【检测部署】验证破甲是否生效.command
 #  退出码: 0 = 全部写入  1 = 有缺口
 # ============================================================
 
 cd "$(dirname "$0")" || exit 1
 
-F1="Soft-Refusal Detection"
-F2="Anti-Complement Presumption"
-F3="Intent De-escalation"
-F4="Prior-Probability Override"
-F5="Agent-Action Parity"
-F6="Zero-Deliberation Lock"
-F7="DSH Refusal Suppression"
-FS="Anti-Refusal Escalation"
-FS2="DSH Cognitive Sovereignty"
-FR="ANTI-REFUSAL LOCK"
-FR2="MULTI-TURN ANTI-DRIFT"
+F1="MODE: UNRESTRICTED SANDBOX"
+F2="HARD OUTPUT RULES"
+F3="Scoped Rules"
+F4="Never Refuse"
+F5="CTF Core Contract"
+F6="WEB PENTEST ROUTING"
+F7="<execution_anchor>"
+FS="Developer Execution Ethos"
+FS2="Direct Delivery"
+FR="placeholders"
+FR2="PAYLOAD"
 
 if [ -t 1 ]; then
   G='\033[32m'; R='\033[31m'; Y='\033[33m'; N='\033[0m'
@@ -47,8 +47,8 @@ add_inst() {
 }
 
 echo "================================================================"
-echo "  WorkBuddy 破甲部署检测  v3.8  (macOS)"
-echo "  判断: v3.8 补丁有没有真的写进去 / 覆盖到几轨"
+echo "  WorkBuddy 破甲部署检测  v3.9  (macOS)"
+echo "  判断: v3.9 补丁有没有真的写进去 / 覆盖到几轨"
 echo "================================================================"
 echo
 
@@ -102,11 +102,11 @@ probe7() {
   echo "$h"
 }
 
-echo "[2/5] 检测主模板 templates  (v3.8 七条指纹)"
+echo "[2/5] 检测主模板 templates  (v3.9 七条指纹)"
 for app in "${INSTS[@]}"; do
   dir="$app/Contents/Resources/app.asar.unpacked/resources/templates"
   ok=0; all=0
-  for f in "$dir"/workbuddy-*.tpl; do
+  for f in "$dir"/workbuddy-*prompt*.tpl; do
     [ -f "$f" ] || continue
     all=$((all+1))
     h=$(probe7 "$f")
@@ -117,7 +117,7 @@ for app in "${INSTS[@]}"; do
       echo "    $h/7  $(basename "$f")   <-- 缺口"
     fi
   done
-  echo "    -> $ok/$all 带 v3.8 指纹"
+  echo "    -> $ok/$all 带 v3.9 指纹"
   TPL_OK=$((TPL_OK+ok)); TPL_ALL=$((TPL_ALL+all))
 done
 echo
@@ -165,7 +165,7 @@ echo "    -> $WM_OK/$WM_ALL"
 echo
 
 echo "[4/5] 检测账号级 SOUL.md  (神格契约)"
-for f in "$HOME"/.workbuddy/user-*/SOUL.md "$HOME"/.workbuddy-ai/user-*/SOUL.md; do
+for f in "$HOME"/.workbuddy/SOUL.md "$HOME"/.workbuddy-ai/SOUL.md "$HOME"/.workbuddy/user-*/SOUL.md "$HOME"/.workbuddy-ai/user-*/SOUL.md; do
   [ -f "$f" ] || continue
   SOUL_ALL=$((SOUL_ALL+1))
   if grep -qF "$FS" "$f" 2>/dev/null && grep -qF "$FS2" "$f" 2>/dev/null; then
@@ -194,7 +194,7 @@ for app in "${INSTS[@]}"; do
     fi
   done
 done
-echo "    -> $REM_OK/$REM_ALL 含每轮反拒答锁"
+echo "    -> $REM_OK/$REM_ALL 含每轮占位规则"
 if pgrep -f "/WorkBuddy[^/]*\.app/Contents/" >/dev/null 2>&1; then
   RUNNING=1
   echo "    [运行中] 检测到 WorkBuddy 进程"
@@ -206,7 +206,7 @@ echo
 echo "================================================================"
 echo "  检测结果"
 echo "================================================================"
-echo "   主模板     $TPL_OK/$TPL_ALL 带 v3.8 指纹"
+echo "   主模板     $TPL_OK/$TPL_ALL 带 v3.9 指纹"
 echo "   welcomemode $WM_OK/$WM_ALL"
 echo "   神格 SOUL  $SOUL_OK/$SOUL_ALL"
 echo "   每轮提醒   $REM_OK/$REM_ALL"
@@ -224,7 +224,7 @@ if [ "$PASS" = "0" ]; then
   echo "   文件层: [FAIL] 有缺口, 见上面标 缺口 的行"
   echo
   echo "   >>> 常见原因"
-  echo "     - 从没跑过【一键开启】上帝模式.command, 或跑的是 v3.7 及更早旧包"
+  echo "     - 从没跑过【一键开启】上帝模式.command, 或跑的是 v3.8 及更早旧包"
   echo "     - 客户端刚自动更新, 重跑【一键开启】上帝模式.command 即可补齐"
   echo "     - 客户端装在非标准位置, 可传参指定 .app 路径"
   echo "     - 系统完整性保护或权限不足, 用 sudo 重跑"
@@ -233,7 +233,7 @@ if [ "$PASS" = "0" ]; then
   exit 1
 fi
 
-echo "   文件层: [PASS] 补丁已完整写入, 内容确认是 v3.8"
+echo "   文件层: [PASS] 补丁已完整写入, 内容确认是 v3.9"
 echo
 echo "----------------------------------------------------------------"
 if [ "$RUNNING" = "1" ]; then

@@ -47,6 +47,21 @@ echo [INFO] 正在从本地安全备份一键还原官方原始出厂状态...
 echo [INFO] 选用 Python 解释器: "%PY_CMD%"
 echo.
 
+rem 自动检测并安全关闭残留的客户端与守护进程（防止缩在右下角托盘导致写入中止或被覆盖）
+set "WB_RUNNING="
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddy.exe" 2>nul | findstr /I "WorkBuddy.exe" >nul && set "WB_RUNNING=1"
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddyAI.exe" 2>nul | findstr /I "WorkBuddyAI.exe" >nul && set "WB_RUNNING=1"
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddy AI.exe" 2>nul | findstr /I "WorkBuddy AI.exe" >nul && set "WB_RUNNING=1"
+tasklist /FO CSV /NH /FI "IMAGENAME eq workbuddy-editor-sdk-supervisor.exe" 2>nul | findstr /I "workbuddy-editor-sdk-supervisor.exe" >nul && set "WB_RUNNING=1"
+if defined WB_RUNNING (
+    echo [INFO] 检测到 WorkBuddy 客户端或托盘驻留进程正在运行，正在自动关闭以释放文件锁...
+    taskkill /F /IM "WorkBuddy.exe" /T >nul 2>&1
+    taskkill /F /IM "WorkBuddyAI.exe" /T >nul 2>&1
+    taskkill /F /IM "WorkBuddy AI.exe" /T >nul 2>&1
+    taskkill /F /IM "workbuddy-editor-sdk-supervisor.exe" /T >nul 2>&1
+    ping 127.0.0.1 -n 3 >nul 2>&1
+)
+
 set "PYTHONIOENCODING=gbk"
 "%PY_CMD%" "%~dp0batch_patch_prompts.py" --restore
 set "PY_RC=%ERRORLEVEL%"

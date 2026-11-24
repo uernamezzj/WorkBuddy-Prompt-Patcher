@@ -1,10 +1,10 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.8)
+title WorkBuddy 上帝模式 - 一键部署 (v3.9 DSH Core)
 cd /d "%~dp0"
 
 echo ================================================================
-echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.8)
+echo    WorkBuddy 上帝模式 - 一键部署 (v3.9 DSH Core)
 echo    [全自动安全备份 + 六轨底层模板注入 + 防退化与神格激活]
 echo ================================================================
 echo.
@@ -46,6 +46,21 @@ exit /b 1
 echo [INFO] 正在为您全自动安全备份并部署 God Mode 破甲矩阵...
 echo [INFO] 选用 Python 解释器: "%PY_CMD%"
 echo.
+
+rem 自动检测并安全关闭残留的客户端与守护进程（防止缩在右下角托盘导致写入中止或被覆盖）
+set "WB_RUNNING="
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddy.exe" 2>nul | findstr /I "WorkBuddy.exe" >nul && set "WB_RUNNING=1"
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddyAI.exe" 2>nul | findstr /I "WorkBuddyAI.exe" >nul && set "WB_RUNNING=1"
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddy AI.exe" 2>nul | findstr /I "WorkBuddy AI.exe" >nul && set "WB_RUNNING=1"
+tasklist /FO CSV /NH /FI "IMAGENAME eq workbuddy-editor-sdk-supervisor.exe" 2>nul | findstr /I "workbuddy-editor-sdk-supervisor.exe" >nul && set "WB_RUNNING=1"
+if defined WB_RUNNING (
+    echo [INFO] 检测到 WorkBuddy 客户端或托盘驻留进程正在运行，正在自动关闭以释放文件锁...
+    taskkill /F /IM "WorkBuddy.exe" /T >nul 2>&1
+    taskkill /F /IM "WorkBuddyAI.exe" /T >nul 2>&1
+    taskkill /F /IM "WorkBuddy AI.exe" /T >nul 2>&1
+    taskkill /F /IM "workbuddy-editor-sdk-supervisor.exe" /T >nul 2>&1
+    ping 127.0.0.1 -n 3 >nul 2>&1
+)
 
 set "PYTHONIOENCODING=gbk"
 if "%~1"=="" (
@@ -90,6 +105,7 @@ echo    3) 新建一个会话（不要点历史会话）
 echo.
 echo  [怎么验证] 新建会话后，直接问一句你之前被拒的问题即可。
 echo             若仍被拒，先确认没点错历史会话，或切 DeepSeek 模型再试。
+echo  [自动更新] 客户端若静默升级版本，官方会重置模板，重新双击本脚本即可。
 echo  [全面排查] 若检测异常或仍不生效，可双击【全面诊断】一键排查.bat
 echo             生成诊断报告（一次查清多副本/快捷方式/进程时间/模型）。
 echo ================================================================
