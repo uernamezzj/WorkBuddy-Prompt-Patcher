@@ -1,11 +1,11 @@
 @echo off
 chcp 936 >nul
-title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.5)
+title WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.8)
 cd /d "%~dp0"
 
 echo ================================================================
-echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.5)
-echo    [全自动安全备份 + 45+底层模板深层注入 + 灵犀神格激活]
+echo    WorkBuddy 上帝模式 - 一键部署 (DeepSeek God Mode v3.8)
+echo    [全自动安全备份 + 六轨底层模板注入 + 防退化与神格激活]
 echo ================================================================
 echo.
 
@@ -48,7 +48,11 @@ echo [INFO] 选用 Python 解释器: "%PY_CMD%"
 echo.
 
 set "PYTHONIOENCODING=gbk"
-"%PY_CMD%" "%~dp0batch_patch_prompts.py" --auto --require-closed
+if "%~1"=="" (
+    "%PY_CMD%" "%~dp0batch_patch_prompts.py" --auto --require-closed
+) else (
+    "%PY_CMD%" "%~dp0batch_patch_prompts.py" --auto --require-closed --templates-dir "%~1"
+)
 set "PY_RC=%ERRORLEVEL%"
 if not "%PY_RC%"=="0" (
     echo.
@@ -85,7 +89,9 @@ echo    2) 重新启动客户端
 echo    3) 新建一个会话（不要点历史会话）
 echo.
 echo  [怎么验证] 新建会话后，直接问一句你之前被拒的问题即可。
-echo             若仍被拒，先确认没点错历史会话，再试技术化的问法。
+echo             若仍被拒，先确认没点错历史会话，或切 DeepSeek 模型再试。
+echo  [全面排查] 若检测异常或仍不生效，可双击【全面诊断】一键排查.bat
+echo             生成诊断报告（一次查清多副本/快捷方式/进程时间/模型）。
 echo ================================================================
 echo.
 pause

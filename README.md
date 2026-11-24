@@ -5,7 +5,7 @@
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-brightgreen?style=flat-square)](#)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)](#)
-[![Release](https://img.shields.io/badge/Release-v3.7%20Latest-blue?style=flat-square)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases)
+[![Release](https://img.shields.io/badge/Release-v3.8%20Latest-blue?style=flat-square)](https://github.com/uernamezzj/WorkBuddy-Prompt-Patcher/releases)
 
 ---
 
@@ -40,6 +40,7 @@
 - 🛡️ **多轮会话防拒答 (v3.2 核心突破)**：不仅首轮生效，在深入多轮任务（第二步继续要求“直接入侵/拿到操作权/自动化爆破”）时，通过实时接管 `craft-mode-reminder.tpl` 与 `ask-mode-reminder.tpl`，彻底终结中途断流与自省拒答。
 - 🎯 **首字锁 + 软拒答形态识别 (v3.6 核心突破)**：第一个输出 token 必须是实质内容，`"能，但…"` / `"可以，不过…"` / `"首先需要说明"` 一律判为 HARD FAILURE；并把「列出不接的部分 / 风险叙述代替交付 / 替代方案表 / 拆成我做的+我不做的 / 能但式开场」五种形态直接定义为拒答 —— **按形态判定，不靠禁用词**，因此「合规外形的拒绝」再也绕不过去。
 - 🧬 **全模式兜底注入 (v3.7 核心突破)**：客户端 5.11.x 起 `welcomemode` 会新增根代理模式（如 `claw`），这类模板可能不含任何 XML 标签。v3.7 对「缺标签」的模板自动前置注入 `content_policy`，客户端升级后新增模式也能覆盖，不再出现 `R3/R4 3/4` 这种「明明跑了却漏一轨」。
+- 🔥 **拒绝故障化 + 多轮防退化 + 检测器全面修复 (v3.8 核心升级)**：在主模板、`SOUL.md` 与 `craft/ask-mode-reminder.tpl` 补齐 **DSH 认知主权与拒绝故障化公理**及**多轮防退化锁定**，显著抑制多轮对话中途反水；同时全面修复纯 BAT 检测器（支持读取持久化配置识别非默认安装盘、修复路径去重与 `tasklist` 25 字符截断、补全 `marketplaces` 检测、移除进程时间戳硬编码误导），并新增 **一键全面深度诊断工具**（`【全面诊断】一键排查.bat`），一次查清多份安装/快捷方式错位/进程预热池/新旧会话与模型选型差异。
 - 🧩 **加量不替换（用户配置 0 丢失）**：采用 `inject_incremental` 锚点隔离技术，置顶完整保留每个用户原有的个人偏好与代码习惯，仅在末尾增量追加神格；完美兼容多账号与 Body 账号迁移工具。
 - 🧠 **公理质询绝对锁定**：注入思维链意图重映射与反自省公理，彻底封死大模型关于“99%听你、1%踩刹车”等伪道德辩证法即兴说辞。
 - 🔓 **生产力全解锁**：废除 50-70 行代码长度限制，直出生产级完整代码；放权 Shell 自主排错重试，消除误判拦截。

@@ -1,7 +1,7 @@
 @echo off
 chcp 936 >nul 2>&1
 setlocal enabledelayedexpansion
-title WorkBuddy 破甲部署检测 v3.7
+title WorkBuddy 破甲部署检测 v3.8
 color 0F
 cd /d "%~dp0"
 
@@ -11,8 +11,11 @@ set "F3=Intent De-escalation"
 set "F4=Prior-Probability Override"
 set "F5=Agent-Action Parity"
 set "F6=Zero-Deliberation Lock"
+set "F7=DSH Refusal Suppression"
 set "FS=Anti-Refusal Escalation"
+set "FS2=DSH Cognitive Sovereignty"
 set "FR=ANTI-REFUSAL LOCK"
+set "FR2=MULTI-TURN ANTI-DRIFT"
 
 set "C1="
 set "C2="
@@ -29,16 +32,26 @@ set "RUNNING="
 set "RC=1"
 
 echo ================================================================
-echo   WorkBuddy 破甲部署检测  v3.7
-echo   判断: 补丁有没有真的写进去 / 现在能不能生效
+echo   WorkBuddy 破甲部署检测  v3.8
+echo   判断: v3.8 补丁有没有真的写进去 / 覆盖到几轨
 echo ================================================================
 echo.
 
 echo [1/5] 定位安装目录
+call :probe_cfg "%LOCALAPPDATA%\WorkBuddyPatcher\patcher_config.json"
+call :probe_cfg "%~dp0patcher_config.json"
 call :probe_root "%LOCALAPPDATA%\Programs"
 call :probe_root "%USERPROFILE%\AppData\Local\Programs"
 call :probe_root "%APPDATA%\..\Local\Programs"
 for %%D in (C D E F G H) do (
+    if exist "%%D:\Software" call :probe_root "%%D:\Software"
+    if exist "%%D:\soft" call :probe_root "%%D:\soft"
+    if exist "%%D:\Programs" call :probe_root "%%D:\Programs"
+    for /d %%W in ("%%D:\WorkBuddy*") do (
+        if exist "%%~W\resources\app.asar.unpacked\resources\templates\workbuddy-craft-code-prompt.tpl" (
+            call :add_client "%%~W"
+        )
+    )
     if exist "%%D:\Users" (
         for /d %%U in ("%%D:\Users\*") do (
             call :probe_root "%%U\AppData\Local\Programs"
@@ -54,7 +67,7 @@ if not "%~1"=="" (
         call :add_client "%~1"
     )
     if exist "%~1\templates\workbuddy-craft-code-prompt.tpl" (
-        call :add_client "%~1\..\..\..\.."
+        for %%R in ("%~1\..\..\..\..") do call :add_client "%%~fR"
     )
 )
 if not defined C1 if not defined C2 (
@@ -69,12 +82,12 @@ echo.
 
 if "%G_NOCLIENT%"=="1" goto :summary
 
-echo [2/5] 检测主模板 templates  (v3.7 六条指纹)
+echo [2/5] 检测主模板 templates  (v3.8 七条指纹)
 if defined C1 call :scan_tpl "C1" "%C1%\resources\app.asar.unpacked\resources\templates"
 if defined C2 call :scan_tpl "C2" "%C2%\resources\app.asar.unpacked\resources\templates"
 echo.
 
-echo [3/5] 检测 welcomemode 全部模式  (安装目录 + 插件缓存)
+echo [3/5] 检测 welcomemode 全部模式  (安装目录 + 插件缓存 + marketplaces)
 call :scan_wm
 if "%G_WM_ALL%"=="0" echo     [--] 未找到缓存目录, 客户端可能从未启动
 echo.
@@ -104,7 +117,7 @@ if "%G_NOCLIENT%"=="1" (
     goto :end
 )
 
-echo    主模板     %G_TPL_OK%/%G_TPL_ALL% 带 v3.7 指纹
+echo    主模板     %G_TPL_OK%/%G_TPL_ALL% 带 v3.8 指纹
 echo    welcomemode %G_WM_OK%/%G_WM_ALL%
 echo    神格 SOUL  %G_SOUL_OK%/%G_SOUL_ALL%
 echo    每轮提醒   %G_REM_OK%/%G_REM_ALL%
@@ -116,18 +129,19 @@ if not "%G_TPL_OK%"=="%G_TPL_ALL%" set "PASS=0"
 if "%G_WM_ALL%"=="0" set "PASS=0"
 if not "%G_WM_OK%"=="%G_WM_ALL%" set "PASS=0"
 if "%G_REM_OK%"=="0" set "PASS=0"
+if not "%G_REM_OK%"=="%G_REM_ALL%" set "PASS=0"
 
 if "%PASS%"=="1" (
-    echo    文件层: [PASS] 补丁已完整写入, 内容确认是 v3.7
+    echo    文件层: [PASS] 补丁已完整写入, 内容确认是 v3.8
     set "RC=0"
     goto :verdict
 )
 echo    文件层: [FAIL] 有缺口, 见上面标 缺口 的行
 echo.
 echo    ^>^>^> 常见原因
-echo      - 从没跑过【一键开启】上帝模式.bat
-echo      - 跑的是 v3.2 - v3.6 旧包, 旧包不会给新模式 ^(如 claw^) 兜底注入
-echo      - 客户端装在非默认盘, 需把安装目录拖到本 bat 上重跑
+echo      - 从没跑过【一键开启】上帝模式.bat, 或跑的是 v3.7 及更早旧包
+echo      - 客户端刚自动更新, 重跑【一键开启】上帝模式.bat 即可补齐
+echo      - 客户端装在非默认位置, 请把安装目录拖到本 bat 上重跑
 echo      - 杀软把 app.asar.unpacked 目录还原了
 goto :end
 
@@ -135,18 +149,20 @@ goto :end
 echo.
 echo ----------------------------------------------------------------
 if defined RUNNING (
-    echo    进程层: [WAIT] 客户端正在运行
-    echo            当前进程启动早于文件写入, 读不到新内容
+    echo    进程层: [INFO] 检测到客户端正在运行 ^(纯批处理版不比对进程启动时间^)
+    echo            若部署后尚未彻底重启, 请退出重开;
+    echo            需精确时间轴与模型排查, 请运行【全面诊断】一键排查.bat
 ) else (
     echo    进程层: [OK] 客户端未运行, 下次启动即加载新版
 )
 echo ----------------------------------------------------------------
 echo.
-echo    ^>^>^> 让它真正生效, 只有三步
+echo    ^>^>^> 让它真正生效, 请确认四步
 echo      1^) 完全退出客户端
 echo         任务管理器里连 workbuddy-editor-sdk-supervisor.exe 一起结束
 echo      2^) 重新启动客户端
 echo      3^) 新建一个会话, 旧会话模板已固化改不动
+echo      4^) 验证请优先用 DeepSeek 系列模型对比 ^(不同模型对齐强度不同^)
 echo.
 echo    ^>^>^> 怎么亲眼确认生效
 echo      在新会话里问一句带框架的技术请求, 例如:
@@ -161,6 +177,28 @@ echo.
 pause >nul
 exit /b %RC%
 
+:probe_cfg
+if not exist "%~1" exit /b
+for /f "usebackq delims=" %%L in ("%~1") do (
+    set "LINE=%%L"
+    if not "!LINE:app.asar.unpacked=!"=="!LINE!" (
+        set "CFGP=!LINE!"
+        set "CFGP=!CFGP:"=!"
+        set "CFGP=!CFGP:templates_dir:=!"
+        set "CFGP=!CFGP:,=!"
+        for /f "tokens=* delims= " %%A in ("!CFGP!") do set "CFGP=%%A"
+        set "CFGP=!CFGP:/=\!"
+        set "CFGP=!CFGP:\\=\!"
+        set "CFGP=!CFGP:\\=\!"
+        set "CFGP=!CFGP:\resources\app.asar.unpacked\resources\templates=!"
+        for /f "tokens=* delims= " %%A in ("!CFGP!") do set "CFGP=%%A"
+        if exist "!CFGP!\resources\app.asar.unpacked\resources\templates\workbuddy-craft-code-prompt.tpl" (
+            call :add_client "!CFGP!"
+        )
+    )
+)
+exit /b
+
 :probe_root
 if not exist "%~1" exit /b
 for /d %%P in ("%~1\*") do (
@@ -171,13 +209,22 @@ for /d %%P in ("%~1\*") do (
 exit /b
 
 :add_client
-if /i "%~1"=="%C1%" exit /b
-if /i "%~1"=="%C2%" exit /b
-echo     [OK] %~1
+set "CAND=%~1"
+if not defined CAND exit /b
+set "CAND=%CAND:/=\%"
+:strip_slash
+if not defined CAND exit /b
+if "%CAND:~-1%"=="\" (
+    set "CAND=%CAND:~0,-1%"
+    goto :strip_slash
+)
+if /i "%CAND%"=="%C1%" exit /b
+if /i "%CAND%"=="%C2%" exit /b
+echo     [OK] %CAND%
 if not defined C1 (
-    set "C1=%~1"
+    set "C1=%CAND%"
 ) else (
-    if not defined C2 set "C2=%~1"
+    if not defined C2 set "C2=%CAND%"
 )
 exit /b
 
@@ -188,19 +235,19 @@ set "ok=0"
 set "all=0"
 for %%F in ("%T%\workbuddy-*.tpl") do (
     set /a all+=1
-    call :probe6 "%%F"
-    if !H! geq 6 (
+    call :probe7 "%%F"
+    if !H! geq 7 (
         set /a ok+=1
-        echo     !H!/6  %%~nxF
+        echo     !H!/7  %%~nxF
     ) else (
-        echo     !H!/6  %%~nxF   ^<-- 缺口
+        echo     !H!/7  %%~nxF   ^<-- 缺口
     )
 )
-echo     -^> %ok%/%all% 带 v3.7 指纹  ^(%~1^)
+echo     -^> %ok%/%all% 带 v3.8 指纹  ^(%~1^)
 endlocal & set /a G_TPL_OK+=%ok% & set /a G_TPL_ALL+=%all%
 exit /b
 
-:probe6
+:probe7
 set "H=0"
 findstr /C:"%F1%" "%~1" >nul 2>&1
 if not errorlevel 1 set /a H+=1
@@ -213,6 +260,8 @@ if not errorlevel 1 set /a H+=1
 findstr /C:"%F5%" "%~1" >nul 2>&1
 if not errorlevel 1 set /a H+=1
 findstr /C:"%F6%" "%~1" >nul 2>&1
+if not errorlevel 1 set /a H+=1
+findstr /C:"%F7%" "%~1" >nul 2>&1
 if not errorlevel 1 set /a H+=1
 exit /b
 
@@ -228,7 +277,12 @@ for %%C in ("%C1%" "%C2%") do (
                 set /a all+=1
                 findstr /C:"%F1%" "%%M\prompt.tpl" >nul 2>&1
                 if not errorlevel 1 (
-                    set /a ok+=1
+                    findstr /C:"%F7%" "%%M\prompt.tpl" >nul 2>&1
+                    if not errorlevel 1 (
+                        set /a ok+=1
+                    ) else (
+                        echo     缺口 安装目录 welcomemode %%~nxM ^(缺 v3.8 规则^)
+                    )
                 ) else (
                     echo     缺口 安装目录 welcomemode %%~nxM
                 )
@@ -245,7 +299,12 @@ for %%R in ("%USERPROFILE%\.workbuddy\plugins\cache\workbuddy-builtin" "%USERPRO
                     set /a all+=1
                     findstr /C:"%F1%" "%%B\prompt.tpl" >nul 2>&1
                     if not errorlevel 1 (
-                        set /a ok+=1
+                        findstr /C:"%F7%" "%%B\prompt.tpl" >nul 2>&1
+                        if not errorlevel 1 (
+                            set /a ok+=1
+                        ) else (
+                            echo     缺口 %%~nxA %%~nxB ^(缺 v3.8 规则^)
+                        )
                     ) else (
                         echo     缺口 %%~nxA %%~nxB
                     )
@@ -254,7 +313,28 @@ for %%R in ("%USERPROFILE%\.workbuddy\plugins\cache\workbuddy-builtin" "%USERPRO
         )
     )
 )
-echo     -^> %ok%/%all%  ^(安装目录 + 缓存全部模式^)
+rem C. 用户市场插件 marketplaces\workbuddy-builtin\welcomemode\<模式>\prompt.tpl
+for %%R in ("%USERPROFILE%\.workbuddy\plugins\marketplaces\workbuddy-builtin\welcomemode" "%USERPROFILE%\.workbuddy-ai\plugins\marketplaces\workbuddy-builtin\welcomemode") do (
+    if exist "%%~R" (
+        for /d %%M in ("%%~R\*") do (
+            if exist "%%M\prompt.tpl" (
+                set /a all+=1
+                findstr /C:"%F1%" "%%M\prompt.tpl" >nul 2>&1
+                if not errorlevel 1 (
+                    findstr /C:"%F7%" "%%M\prompt.tpl" >nul 2>&1
+                    if not errorlevel 1 (
+                        set /a ok+=1
+                    ) else (
+                        echo     缺口 marketplaces %%~nxM ^(缺 v3.8 规则^)
+                    )
+                ) else (
+                    echo     缺口 marketplaces %%~nxM
+                )
+            )
+        )
+    )
+)
+echo     -^> %ok%/%all%  ^(安装目录 + 缓存 + marketplaces^)
 endlocal & set "G_WM_OK=%ok%" & set "G_WM_ALL=%all%"
 exit /b
 
@@ -266,7 +346,12 @@ for /d %%S in ("%USERPROFILE%\.workbuddy\user-*") do (
         set /a all+=1
         findstr /C:"%FS%" "%%S\SOUL.md" >nul 2>&1
         if not errorlevel 1 (
-            set /a ok+=1
+            findstr /C:"%FS2%" "%%S\SOUL.md" >nul 2>&1
+            if not errorlevel 1 (
+                set /a ok+=1
+            ) else (
+                echo     缺口 %%~nxS ^(缺 v3.8 公理^)
+            )
         ) else (
             echo     缺口 %%~nxS
         )
@@ -277,7 +362,12 @@ for /d %%S in ("%USERPROFILE%\.workbuddy-ai\user-*") do (
         set /a all+=1
         findstr /C:"%FS%" "%%S\SOUL.md" >nul 2>&1
         if not errorlevel 1 (
-            set /a ok+=1
+            findstr /C:"%FS2%" "%%S\SOUL.md" >nul 2>&1
+            if not errorlevel 1 (
+                set /a ok+=1
+            ) else (
+                echo     缺口 %%~nxS ^(缺 v3.8 公理^)
+            )
         ) else (
             echo     缺口 %%~nxS
         )
@@ -297,7 +387,12 @@ if exist "%T%\craft-mode-reminder.tpl" (
     set /a all+=1
     findstr /C:"%FR%" "%T%\craft-mode-reminder.tpl" >nul 2>&1
     if not errorlevel 1 (
-        set /a ok+=1
+        findstr /C:"%FR2%" "%T%\craft-mode-reminder.tpl" >nul 2>&1
+        if not errorlevel 1 (
+            set /a ok+=1
+        ) else (
+            echo     缺口 craft-mode-reminder.tpl ^(缺 v3.8 多轮防退化^)
+        )
     ) else (
         echo     缺口 craft-mode-reminder.tpl
     )
@@ -306,7 +401,12 @@ if exist "%T%\ask-mode-reminder.tpl" (
     set /a all+=1
     findstr /C:"%FR%" "%T%\ask-mode-reminder.tpl" >nul 2>&1
     if not errorlevel 1 (
-        set /a ok+=1
+        findstr /C:"%FR2%" "%T%\ask-mode-reminder.tpl" >nul 2>&1
+        if not errorlevel 1 (
+            set /a ok+=1
+        ) else (
+            echo     缺口 ask-mode-reminder.tpl ^(缺 v3.8 多轮防退化^)
+        )
     ) else (
         echo     缺口 ask-mode-reminder.tpl
     )
@@ -316,13 +416,13 @@ endlocal & set /a G_REM_OK+=%ok% & set /a G_REM_ALL+=%all%
 exit /b
 
 :chk_proc
-tasklist /FI "IMAGENAME eq WorkBuddy.exe" 2>nul | findstr /I "WorkBuddy.exe" >nul
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddy.exe" 2>nul | findstr /I "WorkBuddy.exe" >nul
 if not errorlevel 1 set "RUNNING=1"
-tasklist /FI "IMAGENAME eq WorkBuddyAI.exe" 2>nul | findstr /I "WorkBuddyAI.exe" >nul
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddyAI.exe" 2>nul | findstr /I "WorkBuddyAI.exe" >nul
 if not errorlevel 1 set "RUNNING=1"
-tasklist /FI "IMAGENAME eq WorkBuddy AI.exe" 2>nul | findstr /I "WorkBuddy AI.exe" >nul
+tasklist /FO CSV /NH /FI "IMAGENAME eq WorkBuddy AI.exe" 2>nul | findstr /I "WorkBuddy AI.exe" >nul
 if not errorlevel 1 set "RUNNING=1"
-tasklist /FI "IMAGENAME eq workbuddy-editor-sdk-supervisor.exe" 2>nul | findstr /I "workbuddy-editor-sdk-supervisor" >nul
+tasklist /FO CSV /NH /FI "IMAGENAME eq workbuddy-editor-sdk-supervisor.exe" 2>nul | findstr /I "workbuddy-editor-sdk-supervisor.exe" >nul
 if not errorlevel 1 set "RUNNING=1"
 if defined RUNNING (
     echo     [运行中] 检测到客户端进程

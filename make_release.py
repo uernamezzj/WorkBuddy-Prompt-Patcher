@@ -51,6 +51,8 @@ INCLUDE_FILES = [
     "【检测部署】验证破甲是否生效.command",
     "macos_resign.sh",
     "README-macOS.md",
+    "workbuddy_full_diagnose.py",
+    "【全面诊断】一键排查.bat",
 ]
 INCLUDE_DIRS = ["assets"]
 
