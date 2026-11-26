@@ -2293,11 +2293,33 @@ def detect_running_clients():
     try:
         if sys.platform == "win32":
             import subprocess
-            ps = ('Get-Process -Name "*WorkBuddy*","*workbuddy*" -ErrorAction SilentlyContinue '
-                  '| Select-Object -ExpandProperty ProcessName')
+            ps = (
+                'Get-Process -Name "*WorkBuddy*","*workbuddy*" -ErrorAction SilentlyContinue '
+                '| ForEach-Object { "$($_.Id)|$($_.ProcessName)" }'
+            )
             out = subprocess.check_output(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
                                           text=True, errors="replace", timeout=6)
-            names = sorted({ln.strip() for ln in out.splitlines() if ln.strip()})
+            self_pids = {str(os.getpid()), str(os.getppid())}
+            _WRAPPER_EXCLUDE = (
+                "onekey", "oneclick", "patcher", "launcher",
+                "installer", "setup", "updater", "diagnose", "unins",
+            )
+            matched = set()
+            for ln in out.splitlines():
+                ln = ln.strip()
+                if not ln or "|" not in ln:
+                    continue
+                pid, pname = ln.split("|", 1)
+                pid = pid.strip()
+                pname = pname.strip()
+                if not pname or pid in self_pids:
+                    continue
+                low = pname.lower()
+                if any(ex in low for ex in _WRAPPER_EXCLUDE):
+                    continue
+                if re.match(r"^workbuddy(?:[\s_-]*ai)?$", low) or ("workbuddy" in low and "supervisor" in low):
+                    matched.add(pname)
+            names = sorted(matched)
         else:
             import subprocess
             # 精确匹配：进程的可执行文件路径落在 *.app/Contents/ 内

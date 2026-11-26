@@ -290,11 +290,11 @@ def main():
                 # 关键：显式置 UTF-8 标志位(0x800)，否则 Windows 资源管理器
                 # 按本地代码页解码，中文文件名会变成乱码导致双击不了
                 zi = zipfile.ZipInfo(arc)
+                zi.create_system = 3  # Unix，确保 macOS 归档实用工具恢复 +x 可执行权限
                 zi.flag_bits |= 0x800
                 zi.compress_type = zipfile.ZIP_DEFLATED
-                # macOS 的 .command 必须带可执行位，否则解压后双击只会在终端里
-                # 报 "Permission denied"，用户以为文件坏了
-                zi.external_attr = (0o755 if fn.endswith((".command", ".sh")) else 0o644) << 16
+                # macOS 的 .command/.sh 必须带 S_IFREG (0o100000) + 0o755 可执行位，否则解压后双击报无权限
+                zi.external_attr = (0o100755 if fn.endswith((".command", ".sh")) else 0o100644) << 16
                 with open(full, "rb") as fh:
                     z.writestr(zi, fh.read())
     size = os.path.getsize(zip_path)

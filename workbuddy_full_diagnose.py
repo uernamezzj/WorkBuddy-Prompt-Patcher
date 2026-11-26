@@ -188,8 +188,16 @@ def probe_running_processes():
                     data = [data]
                 for item in data:
                     cmd = item.get("Cmd") or ""
-                    # 排除诊断脚本自己以及当前 powershell 探测命令
-                    if "workbuddy_full_diagnose" in cmd or "Get-CimInstance Win32_Process" in cmd:
+                    pname = item.get("Name") or ""
+                    low_name = pname.lower()
+                    low_cmd = cmd.lower()
+                    # 排除诊断脚本自己、当前 powershell 探测命令、包装器及补丁工具本身
+                    if (
+                        "workbuddy_full_diagnose" in low_cmd
+                        or "get-ciminstance win32_process" in low_cmd
+                        or "batch_patch_prompts" in low_cmd
+                        or any(k in low_name for k in ("onekey", "oneclick", "patcher", "launcher"))
+                    ):
                         continue
                     ticks = int(item.get("Ticks") or 0)
                     dt = None
@@ -198,7 +206,7 @@ def probe_running_processes():
                         dt = dt_utc.replace(tzinfo=datetime.timezone.utc).astimezone().replace(tzinfo=None)
                     procs.append({
                         "pid": item.get("Pid"),
-                        "name": item.get("Name") or "",
+                        "name": pname,
                         "path": item.get("Path") or "",
                         "cmd": cmd,
                         "start_dt": dt,
@@ -216,7 +224,13 @@ def probe_running_processes():
                 if len(parts) < 3:
                     continue
                 pid, etime, cmd = parts
-                if pid in my_pids or "workbuddy_full_diagnose" in cmd:
+                low_cmd = cmd.lower()
+                if (
+                    pid in my_pids
+                    or "workbuddy_full_diagnose" in low_cmd
+                    or "batch_patch_prompts" in low_cmd
+                    or any(k in low_cmd for k in ("onekey", "oneclick", "patcher"))
+                ):
                     continue
                 if re.search(r"workbuddy|codebuddy", cmd, re.IGNORECASE):
                     days = 0
